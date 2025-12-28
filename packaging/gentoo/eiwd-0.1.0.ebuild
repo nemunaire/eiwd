@@ -6,13 +6,15 @@ EAPI=8
 inherit meson
 
 DESCRIPTION="Enlightenment Wi-Fi module using iwd backend"
-HOMEPAGE="https://github.com/yourusername/eiwd"
-SRC_URI="https://github.com/yourusername/eiwd/archive/v${PV}.tar.gz -> ${P}.tar.gz"
+HOMEPAGE="https://git.nemunai.re/nemunaire/eiwd"
+SRC_URI="https://git.nemunai.re/nemunaire/eiwd/archive/v${PV}.tar.gz -> ${P}.tar.gz"
 
-LICENSE="BSD"  # Adjust based on chosen license
+LICENSE="BSD"
 SLOT="0"
 KEYWORDS="~amd64 ~x86 ~arm64"
 IUSE="nls"
+
+S="${WORKDIR}/${PN}"
 
 RDEPEND="
 	>=x11-wm/enlightenment-0.25.0

@@ -13,18 +13,28 @@ evas = dependency('evas')
 edje = dependency('edje')
 eina = dependency('eina')
 
-# Get Enlightenment module API version
-e_version = enlightenment.version().split('.')
-e_major = e_version[0]
-e_minor = e_version[1]
+# Get Enlightenment version and module architecture
+e_version = enlightenment.version()
+
+# Detect system ABI (gnu, musl, etc.)
+cc = meson.get_compiler('c')
+if cc.has_header('features.h')
+  # GNU libc systems
+  system_abi = 'gnu'
+else
+  # Try to detect from system - fallback to 'unknown'
+  system_abi = 'unknown'
+endif
 
 # Installation paths
 module_name = 'iwd'
-module_arch = '@0@-@1@-@2@.@3@'.format(
+# Format: <system>-<abi>-<cpu>-<version>
+# Example: linux-gnu-x86_64-0.27.1
+module_arch = '@0@-@1@-@2@-@3@'.format(
   host_machine.system(),
+  system_abi,
   host_machine.cpu_family(),
-  e_major,
-  e_minor
+  e_version
 )
 
 dir_module = join_paths(get_option('libdir'), 'enlightenment', 'modules', module_name)
