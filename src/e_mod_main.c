@@ -219,15 +219,4 @@ _iwd_config_free(void)
    mod->conf = NULL;
 }
 
-/* Stub implementations for Phase 3 functions */
-void
-e_iwd_gadget_init(void)
-{
-   DBG("Gadget initialization (stub - will be implemented in Phase 3)");
-}
-
-void
-e_iwd_gadget_shutdown(void)
-{
-   DBG("Gadget shutdown (stub)");
-}
+/* Gadget implementations are in e_mod_gadget.c */

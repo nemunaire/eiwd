@@ -11,6 +11,9 @@
 #define MOD_CONFIG_FILE_VERSION \
    ((MOD_CONFIG_FILE_EPOCH << 16) | MOD_CONFIG_FILE_GENERATION)
 
+/* Forward declarations for iwd types */
+typedef struct _IWD_Device IWD_Device;
+
 /* Configuration structure */
 typedef struct _Config
 {
@@ -21,8 +24,17 @@ typedef struct _Config
    const char *preferred_adapter;
 } Config;
 
-/* Module instance structure */
-typedef struct _Instance Instance;
+/* Module instance structure (gadget) */
+typedef struct _Instance
+{
+   E_Gadcon_Client *gcc;
+   Evas_Object *gadget;
+   Evas_Object *icon;
+   void *popup; /* E_Gadcon_Popup - void to avoid circular dependency */
+
+   IWD_Device *device;
+   Ecore_Timer *update_timer;
+} Instance;
 
 /* Global module context */
 typedef struct _Mod
@@ -63,9 +75,13 @@ E_API int e_modapi_save(E_Module *m);
 void e_iwd_config_init(void);
 void e_iwd_config_shutdown(void);
 
-/* Gadget functions (will be implemented in Phase 3) */
+/* Gadget functions */
 void e_iwd_gadget_init(void);
 void e_iwd_gadget_shutdown(void);
+
+/* Popup functions */
+void iwd_popup_new(Instance *inst);
+void iwd_popup_del(Instance *inst);
 
 /* D-Bus functions */
 #include "iwd/iwd_dbus.h"

@@ -1,5 +1,7 @@
 module_sources = files(
   'e_mod_main.c',
+  'e_mod_gadget.c',
+  'e_mod_popup.c',
   'iwd/iwd_dbus.c',
   'iwd/iwd_device.c',
   'iwd/iwd_network.c',
@@ -7,7 +9,7 @@ module_sources = files(
 )
 
 # TODO: Add more source files as they are created in later phases
-# Phase 3: e_mod_gadget.c, e_mod_popup.c, ui/*.c files
+# Phase 4: ui/wifi_auth.c for passphrase dialog
 
 module_deps = [
   enlightenment,
