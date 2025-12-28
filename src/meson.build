@@ -6,10 +6,10 @@ module_sources = files(
   'iwd/iwd_device.c',
   'iwd/iwd_network.c',
   'iwd/iwd_agent.c',
+  'ui/wifi_auth.c',
 )
 
-# TODO: Add more source files as they are created in later phases
-# Phase 4: ui/wifi_auth.c for passphrase dialog
+# All core functionality now implemented
 
 module_deps = [
   enlightenment,

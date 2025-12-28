@@ -5,6 +5,7 @@ static void _popup_comp_del_cb(void *data, Evas_Object *obj);
 static void _button_rescan_cb(void *data, Evas_Object *obj, void *event_info);
 static void _button_disconnect_cb(void *data, Evas_Object *obj, void *event_info);
 static Eina_Bool _popup_reopen_cb(void *data);
+static void _network_selected_cb(void *data, Evas_Object *obj, void *event_info);
 
 /* Create popup */
 void
@@ -113,7 +114,7 @@ iwd_popup_new(Instance *inst)
                   net->name, security,
                   net->known ? " *" : "");
 
-         elm_list_item_append(list, item_text, NULL, NULL, NULL, net);
+         elm_list_item_append(list, item_text, NULL, NULL, _network_selected_cb, net);
          count++;
       }
    }
@@ -123,6 +124,8 @@ iwd_popup_new(Instance *inst)
       elm_list_item_append(list, "No networks found", NULL, NULL, NULL, NULL);
    }
 
+   /* Set select mode to always */
+   elm_list_select_mode_set(list, ELM_OBJECT_SELECT_MODE_ALWAYS);
    elm_list_go(list);
    elm_object_content_set(frame, list);
    evas_object_show(list);
@@ -235,4 +238,41 @@ _button_disconnect_cb(void *data, Evas_Object *obj EINA_UNUSED, void *event_info
 
    /* Close popup */
    iwd_popup_del(inst);
+}
+
+/* Network selected callback */
+static void
+_network_selected_cb(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   IWD_Network *net = data;
+
+   if (!net || !net->name)
+   {
+      DBG("Invalid network selected");
+      return;
+   }
+
+   INF("Network selected: %s (type: %s)", net->name, net->type ? net->type : "unknown");
+
+   /* Check if network requires authentication */
+   if (net->type && (strcmp(net->type, "psk") == 0 || strcmp(net->type, "8021x") == 0))
+   {
+      /* Secured network - need to show auth dialog first */
+      /* Get instance from module */
+      if (iwd_mod && iwd_mod->instances)
+      {
+         Instance *inst = eina_list_data_get(iwd_mod->instances);
+         if (inst)
+         {
+            extern void wifi_auth_dialog_show(Instance *inst, IWD_Network *net);
+            wifi_auth_dialog_show(inst, net);
+         }
+      }
+   }
+   else
+   {
+      /* Open network - connect directly */
+      DBG("Connecting to open network");
+      iwd_network_connect(net);
+   }
 }

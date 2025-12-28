@@ -12,6 +12,7 @@ typedef struct _IWD_Agent
    Eldbus_Service_Interface *iface;
    const char *pending_network_path;
    const char *pending_passphrase;
+   const Eldbus_Message *pending_msg;  /* Stored message to reply to */
 } IWD_Agent;
 
 /* Global agent */

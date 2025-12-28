@@ -126,26 +126,64 @@ iwd_agent_shutdown(void)
    iwd_agent = NULL;
 }
 
-/* Set passphrase for pending request */
+/* Set passphrase for pending request and send reply */
 void
 iwd_agent_set_passphrase(const char *passphrase)
 {
-   if (!iwd_agent) return;
+   Eldbus_Message *reply;
 
-   eina_stringshare_replace(&iwd_agent->pending_passphrase, passphrase);
-   DBG("Passphrase set for pending request");
+   if (!iwd_agent) return;
+   if (!iwd_agent->pending_msg)
+   {
+      WRN("No pending passphrase request");
+      return;
+   }
+
+   DBG("Sending passphrase to iwd");
+
+   /* Create reply message */
+   reply = eldbus_message_method_return_new(iwd_agent->pending_msg);
+   if (reply)
+   {
+      eldbus_message_arguments_append(reply, "s", passphrase);
+      eldbus_connection_send(eldbus_service_connection_get(iwd_agent->iface),
+                             reply, NULL, NULL, -1);
+   }
+
+   /* Clear pending request */
+   eina_stringshare_del(iwd_agent->pending_network_path);
+   iwd_agent->pending_network_path = NULL;
+   iwd_agent->pending_msg = NULL;
+
+   INF("Passphrase sent to iwd");
 }
 
 /* Cancel pending request */
 void
 iwd_agent_cancel(void)
 {
+   Eldbus_Message *reply;
+
    if (!iwd_agent) return;
+
+   /* Send cancellation reply if there's a pending request */
+   if (iwd_agent->pending_msg)
+   {
+      reply = eldbus_message_error_new(iwd_agent->pending_msg,
+                                        "net.connman.iwd.Agent.Error.Canceled",
+                                        "User cancelled");
+      if (reply)
+      {
+         eldbus_connection_send(eldbus_service_connection_get(iwd_agent->iface),
+                                reply, NULL, NULL, -1);
+      }
+   }
 
    eina_stringshare_del(iwd_agent->pending_network_path);
    eina_stringshare_del(iwd_agent->pending_passphrase);
    iwd_agent->pending_network_path = NULL;
    iwd_agent->pending_passphrase = NULL;
+   iwd_agent->pending_msg = NULL;
 
    DBG("Agent request cancelled");
 }
@@ -197,6 +235,7 @@ _agent_request_passphrase(const Eldbus_Service_Interface *iface EINA_UNUSED,
                           const Eldbus_Message *msg)
 {
    const char *network_path;
+   IWD_Network *net;
 
    if (!eldbus_message_arguments_get(msg, "o", &network_path))
    {
@@ -206,13 +245,33 @@ _agent_request_passphrase(const Eldbus_Service_Interface *iface EINA_UNUSED,
 
    INF("Passphrase requested for network: %s", network_path);
 
-   /* Store network path for reference */
+   /* Store network path and message for later reply */
    eina_stringshare_replace(&iwd_agent->pending_network_path, network_path);
+   iwd_agent->pending_msg = msg;
 
-   /* TODO: Show passphrase dialog (Phase 4) */
-   /* For now, just return an error to indicate we're not ready */
+   /* Find the network */
+   net = iwd_network_find(network_path);
+   if (!net)
+   {
+      ERR("Network not found: %s", network_path);
+      iwd_agent->pending_msg = NULL;
+      return eldbus_message_error_new(msg, "net.connman.iwd.Agent.Error.Canceled", "Network not found");
+   }
 
-   return eldbus_message_error_new(msg, "net.connman.iwd.Agent.Error.Canceled", "UI not implemented yet");
+   /* Show passphrase dialog - this will eventually call iwd_agent_set_passphrase */
+   /* We need to get the instance - for now, use the first one */
+   if (iwd_mod && iwd_mod->instances)
+   {
+      Instance *inst = eina_list_data_get(iwd_mod->instances);
+      if (inst)
+      {
+         extern void wifi_auth_dialog_show(Instance *inst, IWD_Network *net);
+         wifi_auth_dialog_show(inst, net);
+      }
+   }
+
+   /* Return NULL to indicate we'll reply later (async) */
+   return NULL;
 }
 
 /* Cancel method */
