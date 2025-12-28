@@ -50,13 +50,15 @@ e_modapi_init(E_Module *m)
    e_iwd_config_init();
    _iwd_config_load();
 
-   /* Initialize D-Bus and iwd subsystems (Phase 2) */
+   /* Initialize D-Bus and iwd subsystems (Phase 2 & 5) */
+   iwd_state_init();
    iwd_device_init();
    iwd_network_init();
 
    if (!iwd_dbus_init())
    {
       WRN("Failed to initialize D-Bus connection to iwd");
+      iwd_state_set(IWD_STATE_ERROR);
       /* Continue anyway - we'll show error state in UI */
    }
 
@@ -90,6 +92,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    iwd_dbus_shutdown();
    iwd_network_shutdown();
    iwd_device_shutdown();
+   iwd_state_shutdown();
 
    /* Free configuration */
    _iwd_config_free();

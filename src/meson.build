@@ -1,15 +1,18 @@
 module_sources = files(
   'e_mod_main.c',
+  'e_mod_config.c',
   'e_mod_gadget.c',
   'e_mod_popup.c',
   'iwd/iwd_dbus.c',
   'iwd/iwd_device.c',
   'iwd/iwd_network.c',
   'iwd/iwd_agent.c',
+  'iwd/iwd_state.c',
   'ui/wifi_auth.c',
+  'ui/wifi_hidden.c',
 )
 
-# All core functionality now implemented
+# All core functionality implemented
 
 module_deps = [
   enlightenment,

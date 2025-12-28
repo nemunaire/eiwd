@@ -4,6 +4,7 @@
 static void _popup_comp_del_cb(void *data, Evas_Object *obj);
 static void _button_rescan_cb(void *data, Evas_Object *obj, void *event_info);
 static void _button_disconnect_cb(void *data, Evas_Object *obj, void *event_info);
+static void _button_hidden_cb(void *data, Evas_Object *obj, void *event_info);
 static Eina_Bool _popup_reopen_cb(void *data);
 static void _network_selected_cb(void *data, Evas_Object *obj, void *event_info);
 
@@ -144,7 +145,12 @@ iwd_popup_new(Instance *inst)
    elm_box_pack_end(button_box, button);
    evas_object_show(button);
 
-   /* TODO: Add more buttons (enable/disable Wi-Fi, settings) */
+   /* Hidden network button */
+   button = elm_button_add(button_box);
+   elm_object_text_set(button, "Hidden...");
+   evas_object_smart_callback_add(button, "clicked", _button_hidden_cb, inst);
+   elm_box_pack_end(button_box, button);
+   evas_object_show(button);
 
    elm_box_pack_end(box, button_box);
    evas_object_show(button_box);
@@ -235,6 +241,23 @@ _button_disconnect_cb(void *data, Evas_Object *obj EINA_UNUSED, void *event_info
 
    DBG("Disconnect requested");
    iwd_device_disconnect(inst->device);
+
+   /* Close popup */
+   iwd_popup_del(inst);
+}
+
+/* Hidden network button callback */
+static void
+_button_hidden_cb(void *data, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+   Instance *inst = data;
+
+   if (!inst) return;
+
+   DBG("Hidden network button clicked");
+
+   extern void wifi_hidden_dialog_show(Instance *inst);
+   wifi_hidden_dialog_show(inst);
 
    /* Close popup */
    iwd_popup_del(inst);

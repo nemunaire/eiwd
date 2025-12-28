@@ -48,6 +48,12 @@ add_project_arguments(
   language: 'c'
 )
 
+# Internationalization
+i18n = import('i18n')
+if get_option('nls')
+  subdir('po')
+endif
+
 # Subdirectories
 subdir('src')
 subdir('data')

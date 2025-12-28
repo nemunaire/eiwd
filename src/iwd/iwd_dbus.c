@@ -190,15 +190,35 @@ _iwd_dbus_name_owner_changed_cb(void *data EINA_UNUSED,
    if (new_id && new_id[0])
    {
       /* iwd daemon started */
-      INF("iwd daemon started");
+      INF("iwd daemon started - reconnecting");
       _iwd_dbus_connect();
+
+      /* Re-register agent */
+      extern Eina_Bool iwd_agent_init(void);
+      iwd_agent_init();
+
+      /* Update state */
+      extern void iwd_state_set(IWD_State state);
+      extern IWD_State iwd_state_get(void);
+      if (iwd_state_get() == IWD_STATE_ERROR)
+      {
+         iwd_state_set(IWD_STATE_IDLE);
+      }
    }
    else if (old_id && old_id[0])
    {
       /* iwd daemon stopped */
       WRN("iwd daemon stopped");
       _iwd_dbus_disconnect();
-      /* TODO: Notify UI to show error state */
+
+      /* Set error state */
+      extern void iwd_state_set(IWD_State state);
+      iwd_state_set(IWD_STATE_ERROR);
+
+      /* Show error dialog */
+      e_util_dialog_show("IWD Wi-Fi Error",
+                         "Wi-Fi daemon (iwd) has stopped.<br>"
+                         "Please restart the iwd service.");
    }
 }
 

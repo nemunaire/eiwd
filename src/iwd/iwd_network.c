@@ -105,6 +105,40 @@ iwd_network_find(const char *path)
    return NULL;
 }
 
+/* Connect error callback */
+static void
+_network_connect_error_cb(void *data EINA_UNUSED,
+                          const Eldbus_Message *msg,
+                          Eldbus_Pending *pending EINA_UNUSED)
+{
+   const char *err_name, *err_msg;
+
+   if (eldbus_message_error_get(msg, &err_name, &err_msg))
+   {
+      ERR("Failed to connect: %s: %s", err_name, err_msg);
+
+      /* Show user-friendly error */
+      if (strstr(err_name, "NotAuthorized") || strstr(err_msg, "Not authorized"))
+      {
+         e_util_dialog_show("Permission Denied",
+                           "You do not have permission to manage Wi-Fi.<br>"
+                           "Please configure polkit rules for iwd.");
+      }
+      else if (strstr(err_name, "Failed") || strstr(err_msg, "operation failed"))
+      {
+         e_util_dialog_show("Connection Failed",
+                           "Failed to connect to the network.<br>"
+                           "Please check your password and try again.");
+      }
+      else
+      {
+         char buf[512];
+         snprintf(buf, sizeof(buf), "Connection error:<br>%s", err_msg ? err_msg : err_name);
+         e_util_dialog_show("Connection Error", buf);
+      }
+   }
+}
+
 /* Connect to network */
 void
 iwd_network_connect(IWD_Network *net)
@@ -117,8 +151,9 @@ iwd_network_connect(IWD_Network *net)
 
    DBG("Connecting to network: %s", net->name ? net->name : net->path);
 
-   /* TODO: This will trigger agent RequestPassphrase if needed */
-   eldbus_proxy_call(net->network_proxy, "Connect", NULL, NULL, -1, "");
+   /* This will trigger agent RequestPassphrase if needed */
+   eldbus_proxy_call(net->network_proxy, "Connect",
+                     _network_connect_error_cb, NULL, -1, "");
 }
 
 /* Forget network */

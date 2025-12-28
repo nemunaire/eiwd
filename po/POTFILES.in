@@ -1,0 +1,10 @@
+# List of source files which contain translatable strings
+src/e_mod_main.c
+src/e_mod_config.c
+src/e_mod_gadget.c
+src/e_mod_popup.c
+src/ui/wifi_auth.c
+src/ui/wifi_hidden.c
+src/iwd/iwd_dbus.c
+src/iwd/iwd_network.c
+src/iwd/iwd_device.c

@@ -74,6 +74,7 @@ E_API int e_modapi_save(E_Module *m);
 /* Configuration functions */
 void e_iwd_config_init(void);
 void e_iwd_config_shutdown(void);
+void e_iwd_config_show(void);
 
 /* Gadget functions */
 void e_iwd_gadget_init(void);
@@ -83,13 +84,15 @@ void e_iwd_gadget_shutdown(void);
 void iwd_popup_new(Instance *inst);
 void iwd_popup_del(Instance *inst);
 
-/* Auth dialog functions */
+/* UI dialog functions */
 #include "ui/wifi_auth.h"
+#include "ui/wifi_hidden.h"
 
 /* D-Bus functions */
 #include "iwd/iwd_dbus.h"
 #include "iwd/iwd_device.h"
 #include "iwd/iwd_network.h"
 #include "iwd/iwd_agent.h"
+#include "iwd/iwd_state.h"
 
 #endif

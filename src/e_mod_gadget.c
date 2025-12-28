@@ -1,4 +1,5 @@
 #include "e_mod_main.h"
+#include <limits.h>
 
 /* Forward declarations */
 static E_Gadcon_Client *_gc_init(E_Gadcon *gc, const char *name, const char *id, const char *style);
@@ -78,8 +79,18 @@ _gc_init(E_Gadcon *gc, const char *name, const char *id, const char *style)
    inst->icon = o;
    inst->gadget = o;
 
-   /* For now, use a simple colored rectangle until we have theme */
-   evas_object_color_set(o, 100, 150, 200, 255);
+   /* Load theme */
+   char theme_path[PATH_MAX];
+   snprintf(theme_path, sizeof(theme_path), "%s/e-module-iwd.edj",
+            e_module_dir_get(iwd_mod->module));
+
+   if (!edje_object_file_set(o, theme_path, "e/modules/iwd/main"))
+   {
+      /* Theme not found, use simple colored rectangle as fallback */
+      WRN("Failed to load theme from %s", theme_path);
+      evas_object_color_set(o, 100, 150, 200, 255);
+   }
+
    evas_object_resize(o, 16, 16);
    evas_object_show(o);
 
@@ -169,11 +180,28 @@ static Evas_Object *
 _gc_icon(const E_Gadcon_Client_Class *client_class EINA_UNUSED, Evas *evas)
 {
    Evas_Object *o;
+   char theme_path[PATH_MAX];
 
    o = edje_object_add(evas);
-   /* TODO: Load theme icon in Phase 6 */
-   /* For now, return a simple colored box */
-   evas_object_color_set(o, 100, 150, 200, 255);
+
+   /* Try to load theme */
+   if (iwd_mod && iwd_mod->module)
+   {
+      snprintf(theme_path, sizeof(theme_path), "%s/e-module-iwd.edj",
+               e_module_dir_get(iwd_mod->module));
+
+      if (!edje_object_file_set(o, theme_path, "e/modules/iwd/main"))
+      {
+         /* Fallback to simple colored box */
+         evas_object_color_set(o, 100, 150, 200, 255);
+      }
+   }
+   else
+   {
+      /* Fallback if module not initialized yet */
+      evas_object_color_set(o, 100, 150, 200, 255);
+   }
+
    evas_object_resize(o, 16, 16);
 
    return o;
@@ -245,20 +273,56 @@ _gadget_update(Instance *inst)
       snprintf(buf, sizeof(buf), "IWD Wi-Fi\nNo device");
    }
 
-   /* TODO: Update icon appearance based on state (Phase 6 with theme) */
-   /* For now, change color based on connection state */
-   if (inst->device && inst->device->state)
+   /* Update icon appearance using Edje signals */
+   extern IWD_State iwd_state_get(void);
+   IWD_State state = iwd_state_get();
+   const char *file = NULL;
+
+   /* Check if theme is loaded */
+   if (inst->icon)
    {
-      if (strcmp(inst->device->state, "connected") == 0)
-         evas_object_color_set(inst->icon, 100, 200, 100, 255); /* Green */
-      else if (strcmp(inst->device->state, "connecting") == 0)
-         evas_object_color_set(inst->icon, 200, 200, 100, 255); /* Yellow */
-      else
-         evas_object_color_set(inst->icon, 150, 150, 150, 255); /* Gray */
+      edje_object_file_get(inst->icon, &file, NULL);
+   }
+
+   if (inst->icon && file)
+   {
+      /* Icon has theme loaded, use signals */
+      switch (state)
+      {
+         case IWD_STATE_CONNECTED:
+            edje_object_signal_emit(inst->icon, "e,state,connected", "e");
+            edje_object_signal_emit(inst->icon, "e,signal,show", "e");
+            break;
+         case IWD_STATE_CONNECTING:
+            edje_object_signal_emit(inst->icon, "e,state,connecting", "e");
+            edje_object_signal_emit(inst->icon, "e,signal,hide", "e");
+            break;
+         case IWD_STATE_ERROR:
+            edje_object_signal_emit(inst->icon, "e,state,error", "e");
+            edje_object_signal_emit(inst->icon, "e,signal,hide", "e");
+            break;
+         default:
+            edje_object_signal_emit(inst->icon, "e,state,disconnected", "e");
+            edje_object_signal_emit(inst->icon, "e,signal,hide", "e");
+            break;
+      }
    }
    else
    {
-      evas_object_color_set(inst->icon, 200, 100, 100, 255); /* Red - no device */
+      /* Fallback to color changes if no theme */
+      if (inst->device && inst->device->state)
+      {
+         if (strcmp(inst->device->state, "connected") == 0)
+            evas_object_color_set(inst->icon, 100, 200, 100, 255); /* Green */
+         else if (strcmp(inst->device->state, "connecting") == 0)
+            evas_object_color_set(inst->icon, 200, 200, 100, 255); /* Yellow */
+         else
+            evas_object_color_set(inst->icon, 150, 150, 150, 255); /* Gray */
+      }
+      else
+      {
+         evas_object_color_set(inst->icon, 200, 100, 100, 255); /* Red - no device */
+      }
    }
 }
 

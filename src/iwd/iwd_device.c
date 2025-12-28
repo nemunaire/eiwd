@@ -201,7 +201,9 @@ _device_properties_changed_cb(void *data,
 
    _device_parse_properties(dev, changed);
 
-   /* TODO: Notify UI of state changes */
+   /* Update global state from device */
+   extern void iwd_state_update_from_device(IWD_Device *dev);
+   iwd_state_update_from_device(dev);
 }
 
 /* Parse device properties */
