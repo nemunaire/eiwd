@@ -1,0 +1,51 @@
+# Maintainer: Your Name <your.email@example.com>
+
+pkgname=eiwd
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Enlightenment Wi-Fi module using iwd backend"
+arch=('x86_64' 'i686' 'aarch64')
+url="https://github.com/yourusername/eiwd"
+license=('BSD')  # Adjust based on chosen license
+depends=('enlightenment>=0.25' 'efl>=1.26' 'iwd>=1.0' 'dbus')
+makedepends=('meson' 'ninja' 'gcc')
+optdepends=('polkit: for non-root Wi-Fi management')
+source=("${pkgname}-${pkgver}.tar.gz")
+sha256sums=('SKIP')  # Update with actual checksum for release
+
+build() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+
+    meson setup build \
+        --prefix=/usr \
+        --libdir=lib \
+        --buildtype=release \
+        -Dnls=true
+
+    ninja -C build
+}
+
+check() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+
+    # Run tests if available
+    # meson test -C build
+
+    # Verify artifacts exist
+    test -f build/src/module.so
+    test -f build/data/e-module-iwd.edj
+}
+
+package() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+
+    DESTDIR="${pkgdir}" ninja -C build install
+
+    # Install documentation
+    install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+    install -Dm644 INSTALL.md "${pkgdir}/usr/share/doc/${pkgname}/INSTALL.md"
+    install -Dm644 CONTRIBUTING.md "${pkgdir}/usr/share/doc/${pkgname}/CONTRIBUTING.md"
+
+    # Install license (adjust path/name as needed)
+    # install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}
