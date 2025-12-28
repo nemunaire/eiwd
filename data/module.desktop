@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Link
+Name=IWD Wi-Fi
+Name[en]=IWD Wi-Fi Manager
+Comment=Manage Wi-Fi connections using iwd
+Comment[en]=Control Wi-Fi networks using Intel Wireless Daemon
+Icon=e-module-iwd
+X-Enlightenment-ModuleType=system
