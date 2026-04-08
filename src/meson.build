@@ -4,6 +4,7 @@ e_iwd_sources = [
   'e_mod_gadget.c',
   'e_mod_popup.c',
   'iwd/iwd_dbus.c',
+  'iwd/iwd_props.c',
   'iwd/iwd_manager.c',
   'iwd/iwd_device.c',
   'iwd/iwd_network.c',
