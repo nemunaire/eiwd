@@ -1,0 +1,23 @@
+e_iwd_sources = [
+  'e_mod_main.c',
+  'e_mod_config.c',
+  'e_mod_gadget.c',
+  'e_mod_popup.c',
+  'iwd/iwd_dbus.c',
+  'iwd/iwd_manager.c',
+  'iwd/iwd_device.c',
+  'iwd/iwd_network.c',
+  'ui/wifi_list.c',
+  'ui/wifi_auth.c',
+  'ui/wifi_status.c',
+]
+
+shared_module('module',
+  e_iwd_sources,
+  name_prefix : '',
+  name_suffix : 'so',
+  dependencies : [eldbus, elementary, enlightenment],
+  include_directories : include_directories('.', 'iwd', 'ui'),
+  install : true,
+  install_dir : join_paths(module_dir, module_arch),
+)

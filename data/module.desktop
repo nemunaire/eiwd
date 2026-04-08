@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Link
+Name=iwd
+Icon=e-module-iwd
+Comment=Wi-Fi management via iwd
+X-Enlightenment-ModuleType=utils

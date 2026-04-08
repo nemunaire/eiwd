@@ -1,0 +1,36 @@
+# Build directories
+.cache/
+build/
+builddir/
+
+# Meson files
+.mesonpy*
+compile_commands.json
+
+# Compiled files
+*.o
+*.so
+*.a
+*.la
+*.lo
+
+# Editor files
+*~
+*.swp
+*.swo
+.*.sw?
+*.bak
+.vscode/
+.idea/
+# System files
+.DS_Store
+Thumbs.db
+
+# Generated files
+config.h
+*.edj
+
+# Core dumps
+core
+core.*
+vgcore.*
