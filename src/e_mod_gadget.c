@@ -57,7 +57,7 @@ _on_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, vo
    Evas_Event_Mouse_Down *ev = event_info;
    Instance *inst = data;
    if (ev->button == 1)
-     e_iwd_popup_toggle(inst->gcc->o_base);
+     e_iwd_popup_toggle(inst->gcc);
 }
 
 /* ----- helpers --------------------------------------------------------- */

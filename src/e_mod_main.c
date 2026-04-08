@@ -1,6 +1,7 @@
 #include "e_mod_main.h"
 #include "iwd/iwd_manager.h"
 #include "e_mod_gadget.h"
+#include "e_mod_popup.h"
 #include "e_mod_config.h"
 
 E_Iwd_Module *e_iwd = NULL;
@@ -29,6 +30,7 @@ e_modapi_init(E_Module *m)
 
    e_iwd_config_load();
    e_iwd->manager = iwd_manager_new(e_iwd->conn);
+   e_iwd_popup_install_passphrase_handler();
    e_iwd_gadget_init();
 
    return m;
