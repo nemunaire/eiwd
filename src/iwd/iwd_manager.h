@@ -3,6 +3,7 @@
 
 #include <Eldbus.h>
 #include <Eina.h>
+#include "iwd_agent.h"
 
 typedef enum {
    IWD_STATE_OFF,
@@ -34,5 +35,11 @@ void iwd_manager_listener_del (Iwd_Manager *m, Iwd_Manager_Cb cb, void *data);
 
 /* Internal: invoked by sub-objects when their state changes. */
 void iwd_manager_notify (Iwd_Manager *m);
+
+/* The UI installs its passphrase prompt here. The handler must
+ * eventually call iwd_agent_reply()/iwd_agent_cancel() with the request. */
+void iwd_manager_set_passphrase_handler(Iwd_Manager *m,
+                                        Iwd_Agent_Passphrase_Cb cb,
+                                        void *data);
 
 #endif

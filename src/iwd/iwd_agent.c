@@ -1,0 +1,149 @@
+#include "iwd_agent.h"
+#include "iwd_dbus.h"
+#include <stdlib.h>
+#include <string.h>
+
+#define IWD_AGENT_PATH "/net/eiwd/agent"
+
+struct _Iwd_Agent
+{
+   Eldbus_Connection            *conn;
+   Eldbus_Service_Interface     *svc;
+   Eldbus_Object                *am_obj;
+   Eldbus_Proxy                 *am_proxy;
+   Iwd_Agent_Passphrase_Cb       cb;
+   void                         *data;
+};
+
+struct _Iwd_Agent_Request
+{
+   Iwd_Agent      *agent;
+   Eldbus_Message *msg;       /* original RequestPassphrase message */
+};
+
+static Iwd_Agent *_self = NULL;  /* one agent per process is plenty */
+
+/* ----- Method handlers ------------------------------------------------- */
+
+static Eldbus_Message *
+_release_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
+            const Eldbus_Message *msg)
+{
+   return eldbus_message_method_return_new(msg);
+}
+
+static Eldbus_Message *
+_cancel_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
+           const Eldbus_Message *msg)
+{
+   /* iwd dropped the auth attempt; we just ack. */
+   return eldbus_message_method_return_new(msg);
+}
+
+static Eldbus_Message *
+_request_passphrase_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
+                       const Eldbus_Message *msg)
+{
+   const char *path = NULL;
+   if (!eldbus_message_arguments_get(msg, "o", &path))
+     return eldbus_message_error_new(msg, "net.connman.iwd.Error.InvalidArgs",
+                                     "Expected object path");
+   if (!_self || !_self->cb)
+     return eldbus_message_error_new(msg, "net.connman.iwd.Agent.Error.Canceled",
+                                     "No UI handler");
+
+   Iwd_Agent_Request *req = calloc(1, sizeof(*req));
+   req->agent = _self;
+   req->msg   = eldbus_message_ref((Eldbus_Message *)msg);
+   _self->cb(_self->data, req, path);
+   /* Deferred reply: returning NULL keeps the message pending. */
+   return NULL;
+}
+
+static const Eldbus_Method _methods[] = {
+   { "Release",           NULL,
+     NULL, _release_cb, 0 },
+   { "RequestPassphrase",
+     ELDBUS_ARGS({ "o", "network" }),
+     ELDBUS_ARGS({ "s", "passphrase" }),
+     _request_passphrase_cb, 0 },
+   { "Cancel",
+     ELDBUS_ARGS({ "s", "reason" }),
+     NULL, _cancel_cb, 0 },
+   { NULL, NULL, NULL, NULL, 0 }
+};
+
+static const Eldbus_Service_Interface_Desc _iface_desc = {
+   IWD_IFACE_AGENT, _methods, NULL, NULL, NULL, NULL
+};
+
+/* ----- Reply / cancel from the UI ------------------------------------- */
+
+void
+iwd_agent_reply(Iwd_Agent_Request *req, const char *passphrase)
+{
+   if (!req) return;
+   Eldbus_Message *r = eldbus_message_method_return_new(req->msg);
+   eldbus_message_arguments_append(r, "s", passphrase ? passphrase : "");
+   eldbus_connection_send(req->agent->conn, r, NULL, NULL, -1);
+   eldbus_message_unref(req->msg);
+   free(req);
+}
+
+void
+iwd_agent_cancel(Iwd_Agent_Request *req)
+{
+   if (!req) return;
+   Eldbus_Message *e = eldbus_message_error_new(req->msg,
+                                                "net.connman.iwd.Agent.Error.Canceled",
+                                                "User canceled");
+   eldbus_connection_send(req->agent->conn, e, NULL, NULL, -1);
+   eldbus_message_unref(req->msg);
+   free(req);
+}
+
+/* ----- Registration with iwd ------------------------------------------ */
+
+static void
+_on_register(void *data EINA_UNUSED, const Eldbus_Message *msg,
+             Eldbus_Pending *p EINA_UNUSED)
+{
+   const char *en, *em;
+   if (eldbus_message_error_get(msg, &en, &em))
+     fprintf(stderr, "e_iwd: agent register failed: %s: %s\n", en, em);
+}
+
+Iwd_Agent *
+iwd_agent_new(Eldbus_Connection *conn, Iwd_Agent_Passphrase_Cb cb, void *data)
+{
+   Iwd_Agent *a = calloc(1, sizeof(*a));
+   if (!a) return NULL;
+   a->conn = conn;
+   a->cb   = cb;
+   a->data = data;
+   _self = a;
+
+   a->svc = eldbus_service_interface_register(conn, IWD_AGENT_PATH, &_iface_desc);
+   if (!a->svc) { free(a); _self = NULL; return NULL; }
+
+   a->am_obj = eldbus_object_get(conn, IWD_BUS_NAME, "/net/connman/iwd");
+   if (a->am_obj)
+     {
+        a->am_proxy = eldbus_proxy_get(a->am_obj, IWD_IFACE_AGENT_MANAGER);
+        if (a->am_proxy)
+          eldbus_proxy_call(a->am_proxy, "RegisterAgent", _on_register, NULL, -1,
+                            "o", IWD_AGENT_PATH);
+     }
+   return a;
+}
+
+void
+iwd_agent_free(Iwd_Agent *a)
+{
+   if (!a) return;
+   if (a->svc)      eldbus_service_interface_unregister(a->svc);
+   if (a->am_proxy) eldbus_proxy_unref(a->am_proxy);
+   if (a->am_obj)   eldbus_object_unref(a->am_obj);
+   if (_self == a)  _self = NULL;
+   free(a);
+}

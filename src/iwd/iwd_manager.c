@@ -14,12 +14,32 @@ typedef struct _Listener
 struct _Iwd_Manager
 {
    Iwd_Dbus    *dbus;
+   Iwd_Agent   *agent;
    Eina_Hash   *devices;   /* path → Iwd_Device * */
    Eina_Hash   *networks;  /* path → Iwd_Network * */
    Eina_List   *listeners; /* Listener * */
    Iwd_State    state;
    Eina_Bool    notify_pending;
+
+   Iwd_Agent_Passphrase_Cb pass_cb;
+   void                   *pass_data;
 };
+
+static void
+_passphrase_trampoline(void *data, Iwd_Agent_Request *req, const char *path)
+{
+   Iwd_Manager *m = data;
+   if (m->pass_cb) m->pass_cb(m->pass_data, req, path);
+   else iwd_agent_cancel(req);
+}
+
+void
+iwd_manager_set_passphrase_handler(Iwd_Manager *m, Iwd_Agent_Passphrase_Cb cb, void *data)
+{
+   if (!m) return;
+   m->pass_cb = cb;
+   m->pass_data = data;
+}
 
 static void _recompute_state(Iwd_Manager *m);
 
@@ -183,7 +203,8 @@ iwd_manager_new(Eldbus_Connection *conn)
       .iface_added   = _on_iface_added,
       .iface_removed = _on_iface_removed,
    };
-   m->dbus = iwd_dbus_new(conn, &cbs, m);
+   m->dbus  = iwd_dbus_new(conn, &cbs, m);
+   m->agent = iwd_agent_new(conn, _passphrase_trampoline, m);
    return m;
 }
 
@@ -191,6 +212,7 @@ void
 iwd_manager_free(Iwd_Manager *m)
 {
    if (!m) return;
+   iwd_agent_free(m->agent);
    iwd_dbus_free(m->dbus);
    eina_hash_free(m->devices);
    eina_hash_free(m->networks);

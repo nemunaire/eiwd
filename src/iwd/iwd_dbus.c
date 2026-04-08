@@ -1,4 +1,5 @@
 #include "iwd_dbus.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -40,6 +41,7 @@ _emit_managed(Iwd_Dbus *d, Eldbus_Message_Iter *objects)
              Eldbus_Message_Iter *props;
              if (!eldbus_message_iter_arguments_get(iface_entry, "sa{sv}", &iface, &props))
                continue;
+             fprintf(stderr, "e_iwd:   %s :: %s\n", path, iface);
              if (d->cbs.iface_added)
                d->cbs.iface_added(d->data, path, iface, props);
           }
@@ -53,12 +55,16 @@ _on_get_managed(void *data, const Eldbus_Message *msg, Eldbus_Pending *pending E
    const char *errname, *errmsg;
    if (eldbus_message_error_get(msg, &errname, &errmsg))
      {
-        /* iwd not present yet — name watcher will retry. */
+        fprintf(stderr, "e_iwd: GetManagedObjects error: %s: %s\n", errname, errmsg);
         return;
      }
    Eldbus_Message_Iter *objects;
    if (!eldbus_message_arguments_get(msg, "a{oa{sa{sv}}}", &objects))
-     return;
+     {
+        fprintf(stderr, "e_iwd: GetManagedObjects: failed to parse top-level dict\n");
+        return;
+     }
+   fprintf(stderr, "e_iwd: GetManagedObjects reply received, walking objects\n");
    _emit_managed(d, objects);
 }
 
