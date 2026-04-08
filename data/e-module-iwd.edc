@@ -1,0 +1,36 @@
+/* Minimal theme for the iwd module gadget.
+ *
+ * Two groups are exported:
+ *   - "icon"            : used by the module loader / gadget chooser preview
+ *   - "e/modules/iwd/main" : the gadget itself, with a single swallow
+ *                            "e.swallow.content" the C code drops the icon in.
+ */
+
+collections {
+   group { name: "icon";
+      min: 24 24;
+      max: 256 256;
+      parts {
+         part { name: "icon"; type: SWALLOW;
+            description { state: "default" 0.0;
+               aspect: 1.0 1.0;
+               aspect_preference: BOTH;
+            }
+         }
+      }
+   }
+
+   group { name: "e/modules/iwd/main";
+      min: 4 4;
+      parts {
+         part { name: "e.swallow.content"; type: SWALLOW;
+            description { state: "default" 0.0;
+               rel1.relative: 0.0 0.0;
+               rel2.relative: 1.0 1.0;
+               aspect: 1.0 1.0;
+               aspect_preference: BOTH;
+            }
+         }
+      }
+   }
+}
