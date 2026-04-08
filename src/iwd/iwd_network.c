@@ -2,6 +2,7 @@
 #include "iwd_dbus.h"
 #include "iwd_props.h"
 #include "iwd_manager.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -79,13 +80,25 @@ iwd_network_free(Iwd_Network *n)
    free(n);
 }
 
+static void
+_on_connect_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   const char *en, *em;
+   const char *ssid = data;
+   if (eldbus_message_error_get(msg, &en, &em))
+     fprintf(stderr, "e_iwd: connect to '%s' failed: %s: %s\n",
+             ssid ? ssid : "?", en, em);
+   free(data);
+}
+
 void
 iwd_network_connect(Iwd_Network *n)
 {
    if (!n || !n->proxy) return;
    /* Network.Connect() takes no args; iwd will dial the registered Agent
     * for a passphrase if needed. */
-   eldbus_proxy_call(n->proxy, "Connect", NULL, NULL, -1, "");
+   eldbus_proxy_call(n->proxy, "Connect", _on_connect_reply,
+                     n->ssid ? strdup(n->ssid) : NULL, -1, "");
 }
 
 void
