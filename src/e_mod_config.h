@@ -5,10 +5,11 @@ typedef struct _E_Iwd_Config E_Iwd_Config;
 
 struct _E_Iwd_Config
 {
-   int  auto_connect;
-   int  show_hidden;
-   int  refresh_interval;
-   char *preferred_adapter;
+   int          version;
+   int          auto_connect;
+   int          show_hidden;
+   int          refresh_interval;
+   const char  *preferred_adapter;   /* eina_stringshare */
 };
 
 extern E_Iwd_Config *e_iwd_config;
