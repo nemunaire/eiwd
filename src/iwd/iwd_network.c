@@ -91,6 +91,19 @@ _on_connect_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_
    free(data);
 }
 
+int
+iwd_network_signal_tier(const Iwd_Network *n)
+{
+   if (!n || !n->have_signal) return 0;
+   /* iwd reports signal in 100*dBm. Cutoffs in dBm: -60/-67/-74/-80. */
+   int dbm = n->signal_dbm / 100;
+   if (dbm >= -60) return 4;
+   if (dbm >= -67) return 3;
+   if (dbm >= -74) return 2;
+   if (dbm >= -80) return 1;
+   return 1;
+}
+
 void
 iwd_network_connect(Iwd_Network *n)
 {

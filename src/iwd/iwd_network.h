@@ -1,6 +1,7 @@
 #ifndef IWD_NETWORK_H
 #define IWD_NETWORK_H
 
+#include <stdint.h>
 #include <Eina.h>
 #include <Eldbus.h>
 
@@ -23,6 +24,10 @@ struct _Iwd_Network
    Iwd_Security  security;
    Eina_Bool     connected;
 
+   /* Signal strength in 100*dBm units (iwd convention). Valid iff have_signal. */
+   int16_t       signal_dbm;
+   Eina_Bool     have_signal;
+
    Eldbus_Object *obj;
    Eldbus_Proxy  *proxy;
    Eldbus_Signal_Handler *sh_props;
@@ -34,6 +39,9 @@ Iwd_Network *iwd_network_new (Eldbus_Connection *conn, const char *path, void *m
 void         iwd_network_free(Iwd_Network *n);
 
 void iwd_network_apply_props(Iwd_Network *n, Eldbus_Message_Iter *props);
+
+/* 0 = unknown/no signal, 1..4 = weak..excellent. */
+int  iwd_network_signal_tier(const Iwd_Network *n);
 
 void iwd_network_connect (Iwd_Network *n);
 /* Forget acts on the KnownNetwork object referenced by this network. */

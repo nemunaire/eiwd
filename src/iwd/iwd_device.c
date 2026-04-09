@@ -2,8 +2,11 @@
 #include "iwd_dbus.h"
 #include "iwd_props.h"
 #include "iwd_manager.h"
+#include "iwd_network.h"
 #include <stdlib.h>
 #include <string.h>
+
+static void _refresh_signals(Iwd_Device *d);
 
 static Iwd_Station_State
 _state_from_str(const char *s)
@@ -36,7 +39,13 @@ _sta_prop_cb(void *data, const char *key, Eldbus_Message_Iter *v)
         d->station_state = _state_from_str(s);
         free(s);
      }
-   else if (!strcmp(key, "Scanning"))         { d->scanning = iwd_props_bool(v); }
+   else if (!strcmp(key, "Scanning"))
+     {
+        Eina_Bool was = d->scanning;
+        d->scanning = iwd_props_bool(v);
+        /* When a scan finishes, ask iwd for the ranked list with RSSI. */
+        if (was && !d->scanning) _refresh_signals(d);
+     }
    else if (!strcmp(key, "ConnectedNetwork")) { free(d->connected_network); d->connected_network = iwd_props_str_dup(v); }
 }
 
@@ -108,6 +117,7 @@ iwd_device_attach_station(Iwd_Device *d)
         d->has_station = EINA_TRUE;
         d->sh_sta_props = eldbus_proxy_properties_changed_callback_add(
             d->station_proxy, _on_sta_props_changed, d);
+        _refresh_signals(d);
      }
 }
 
@@ -134,6 +144,45 @@ iwd_device_free(Iwd_Device *d)
    free(d->adapter_path);
    free(d->connected_network);
    free(d);
+}
+
+/* Reply to Station.GetOrderedNetworks: a(on) — list of (object_path, RSSI).
+ * RSSI is a 16-bit signed value in 100*dBm units. */
+static void
+_on_ordered_networks(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   Iwd_Device *d = data;
+   const char *en, *em;
+   if (eldbus_message_error_get(msg, &en, &em)) return;
+
+   Eldbus_Message_Iter *array = NULL;
+   if (!eldbus_message_arguments_get(msg, "a(on)", &array) || !array)
+     return;
+
+   const Eina_Hash *nets = d->manager ? iwd_manager_networks(d->manager) : NULL;
+   Eldbus_Message_Iter *entry;
+   Eina_Bool any = EINA_FALSE;
+   while (eldbus_message_iter_get_and_next(array, 'r', &entry))
+     {
+        const char *path = NULL;
+        int16_t rssi = 0;
+        if (!eldbus_message_iter_arguments_get(entry, "on", &path, &rssi)) continue;
+        if (!nets || !path) continue;
+        Iwd_Network *n = eina_hash_find(nets, path);
+        if (!n) continue;
+        n->signal_dbm  = rssi;
+        n->have_signal = EINA_TRUE;
+        any = EINA_TRUE;
+     }
+   if (any && d->manager) iwd_manager_notify(d->manager);
+}
+
+static void
+_refresh_signals(Iwd_Device *d)
+{
+   if (!d || !d->station_proxy) return;
+   eldbus_proxy_call(d->station_proxy, "GetOrderedNetworks",
+                     _on_ordered_networks, d, -1, "");
 }
 
 void
