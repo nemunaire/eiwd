@@ -1,5 +1,6 @@
 #include "iwd_manager.h"
 #include "iwd_dbus.h"
+#include "iwd_adapter.h"
 #include "iwd_device.h"
 #include "iwd_network.h"
 #include <stdlib.h>
@@ -15,6 +16,7 @@ struct _Iwd_Manager
 {
    Iwd_Dbus    *dbus;
    Iwd_Agent   *agent;
+   Eina_Hash   *adapters;  /* path → Iwd_Adapter * */
    Eina_Hash   *devices;   /* path → Iwd_Device * */
    Eina_Hash   *networks;  /* path → Iwd_Network * */
    Eina_List   *listeners; /* Listener * */
@@ -86,12 +88,27 @@ static void
 _recompute_state(Iwd_Manager *m)
 {
    Iwd_State s = IWD_STATE_OFF;
+   Eina_Bool any_powered = EINA_FALSE;
+
+   /* Adapter.Powered is the source of truth for radio state — Device.Powered
+    * is a no-op on modern iwd, so don't let it lie to us. If we have no
+    * tracked adapter at all, fall back to "any device exists". */
+   if (eina_hash_population(m->adapters) > 0)
+     {
+        Eina_Iterator *ait = eina_hash_iterator_data_new(m->adapters);
+        Iwd_Adapter *ap;
+        EINA_ITERATOR_FOREACH(ait, ap)
+          if (ap->powered) any_powered = EINA_TRUE;
+        eina_iterator_free(ait);
+     }
+   else
+     any_powered = (eina_hash_population(m->devices) > 0);
+
    Eina_Iterator *it = eina_hash_iterator_data_new(m->devices);
    Iwd_Device *d;
-   Eina_Bool any_powered = EINA_FALSE;
    EINA_ITERATOR_FOREACH(it, d)
      {
-        if (d->powered) any_powered = EINA_TRUE;
+        if (!any_powered) continue;     /* radio is down: ignore stale station */
         if (!d->has_station) continue;
         if (d->scanning && s < IWD_STATE_SCANNING)              s = IWD_STATE_SCANNING;
         if (d->station_state == IWD_STATION_CONNECTING && s < IWD_STATE_CONNECTING) s = IWD_STATE_CONNECTING;
@@ -110,7 +127,17 @@ _on_iface_added(void *data, const char *path, const char *iface, Eldbus_Message_
    Iwd_Manager *m = data;
    Eldbus_Connection *conn = iwd_dbus_conn(m->dbus);
 
-   if (!strcmp(iface, IWD_IFACE_DEVICE))
+   if (!strcmp(iface, IWD_IFACE_ADAPTER))
+     {
+        Iwd_Adapter *a = eina_hash_find(m->adapters, path);
+        if (!a)
+          {
+             a = iwd_adapter_new(conn, path, m);
+             if (a) eina_hash_add(m->adapters, path, a);
+          }
+        if (a) iwd_adapter_apply_props(a, props);
+     }
+   else if (!strcmp(iface, IWD_IFACE_DEVICE))
      {
         Iwd_Device *d = eina_hash_find(m->devices, path);
         if (!d)
@@ -167,6 +194,10 @@ _on_iface_removed(void *data, const char *path, const char *iface)
      {
         eina_hash_del(m->networks, path, NULL);
      }
+   else if (!strcmp(iface, IWD_IFACE_ADAPTER))
+     {
+        eina_hash_del(m->adapters, path, NULL);
+     }
    iwd_manager_notify(m);
 }
 
@@ -177,6 +208,7 @@ static void
 _on_name_vanished(void *data)
 {
    Iwd_Manager *m = data;
+   eina_hash_free_buckets(m->adapters);
    eina_hash_free_buckets(m->devices);
    eina_hash_free_buckets(m->networks);
    m->state = IWD_STATE_OFF;
@@ -185,6 +217,7 @@ _on_name_vanished(void *data)
 
 /* ----- lifecycle ------------------------------------------------------- */
 
+static void _adapter_free_cb(void *d) { iwd_adapter_free(d); }
 static void _device_free_cb (void *d) { iwd_device_free(d); }
 static void _network_free_cb(void *d) { iwd_network_free(d); }
 
@@ -193,6 +226,7 @@ iwd_manager_new(Eldbus_Connection *conn)
 {
    Iwd_Manager *m = calloc(1, sizeof(*m));
    if (!m) return NULL;
+   m->adapters = eina_hash_string_superfast_new(_adapter_free_cb);
    m->devices  = eina_hash_string_superfast_new(_device_free_cb);
    m->networks = eina_hash_string_superfast_new(_network_free_cb);
    m->state    = IWD_STATE_OFF;
@@ -214,6 +248,7 @@ iwd_manager_free(Iwd_Manager *m)
    if (!m) return;
    iwd_agent_free(m->agent);
    iwd_dbus_free(m->dbus);
+   eina_hash_free(m->adapters);
    eina_hash_free(m->devices);
    eina_hash_free(m->networks);
    Listener *li;
@@ -239,8 +274,17 @@ void
 iwd_manager_set_powered(Iwd_Manager *m, Eina_Bool on)
 {
    if (!m) return;
-   Eina_Iterator *it = eina_hash_iterator_data_new(m->devices);
-   Iwd_Device *d;
-   EINA_ITERATOR_FOREACH(it, d) iwd_device_set_powered(d, on);
+
+   if (!on)
+     {
+        Eina_Iterator *dit = eina_hash_iterator_data_new(m->devices);
+        Iwd_Device *d;
+        EINA_ITERATOR_FOREACH(dit, d) iwd_device_disconnect(d);
+        eina_iterator_free(dit);
+     }
+
+   Eina_Iterator *it = eina_hash_iterator_data_new(m->adapters);
+   Iwd_Adapter *a;
+   EINA_ITERATOR_FOREACH(it, a) iwd_adapter_set_powered(a, on);
    eina_iterator_free(it);
 }

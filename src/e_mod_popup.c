@@ -82,6 +82,9 @@ _rebuild_list(Popup *p)
    if (!p->list || !e_iwd || !e_iwd->manager) return;
    elm_box_clear(p->list);
 
+   /* When the radio is off, hide the (now-stale) network list entirely. */
+   if (iwd_manager_state(e_iwd->manager) == IWD_STATE_OFF) return;
+
    const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
    if (!h) return;
 

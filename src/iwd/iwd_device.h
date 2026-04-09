@@ -31,6 +31,8 @@ struct _Iwd_Device
    Eldbus_Object     *obj;
    Eldbus_Proxy      *device_proxy;
    Eldbus_Proxy      *station_proxy;
+   Eldbus_Object     *adapter_obj;
+   Eldbus_Proxy      *adapter_proxy;
    Eldbus_Signal_Handler *sh_dev_props;
    Eldbus_Signal_Handler *sh_sta_props;
 
