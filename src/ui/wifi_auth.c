@@ -43,6 +43,7 @@ _on_del(void *data, Evas *e EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *ev EI
 
 Evas_Object *
 wifi_auth_prompt(Evas_Object *parent EINA_UNUSED, const char *ssid,
+                 const char *security,
                  Wifi_Auth_Cb cb, void *data)
 {
    Auth_Ctx *c = calloc(1, sizeof(*c));
@@ -70,6 +71,17 @@ wifi_auth_prompt(Evas_Object *parent EINA_UNUSED, const char *ssid,
 
    Evas_Object *box = elm_box_add(p);
    elm_box_padding_set(box, 0, 6);
+
+   if (security && *security)
+     {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "Security: %s", security);
+        Evas_Object *lbl = elm_label_add(box);
+        elm_object_text_set(lbl, buf);
+        evas_object_size_hint_align_set(lbl, 0.0, 0.5);
+        elm_box_pack_end(box, lbl);
+        evas_object_show(lbl);
+     }
 
    Evas_Object *entry = elm_entry_add(box);
    elm_entry_single_line_set(entry, EINA_TRUE);

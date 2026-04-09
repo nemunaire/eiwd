@@ -190,7 +190,18 @@ _on_passphrase_request(void *data EINA_UNUSED, Iwd_Agent_Request *req, const cha
              if (n && n->ssid) ssid = n->ssid;
           }
      }
-   wifi_auth_prompt(_popup ? _popup->box : e_comp->elm, ssid, _on_auth_done, NULL);
+   const char *sec = NULL;
+   if (e_iwd && e_iwd->manager)
+     {
+        const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
+        if (h)
+          {
+             Iwd_Network *n = eina_hash_find(h, netpath);
+             if (n) sec = _sec_label(n->security);
+          }
+     }
+   wifi_auth_prompt(_popup ? _popup->box : e_comp->elm, ssid, sec,
+                    _on_auth_done, NULL);
 }
 
 /* ----- popup lifecycle ------------------------------------------------- */
