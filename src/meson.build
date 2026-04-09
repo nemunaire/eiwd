@@ -12,6 +12,7 @@ e_iwd_sources = [
   'iwd/iwd_network.c',
   'ui/wifi_list.c',
   'ui/wifi_auth.c',
+  'ui/wifi_hidden.c',
   'ui/wifi_status.c',
 ]
 
