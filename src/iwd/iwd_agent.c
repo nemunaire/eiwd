@@ -13,6 +13,8 @@ struct _Iwd_Agent
    Eldbus_Proxy                 *am_proxy;
    Iwd_Agent_Passphrase_Cb       cb;
    void                         *data;
+   Iwd_Agent_Cancel_Cb           cancel_cb;
+   void                         *cancel_data;
 };
 
 struct _Iwd_Agent_Request
@@ -36,8 +38,24 @@ static Eldbus_Message *
 _cancel_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
            const Eldbus_Message *msg)
 {
-   /* iwd dropped the auth attempt; we just ack. */
+   /* iwd dropped the auth attempt; let the UI tear down its dialog. */
+   const char *reason = NULL;
+   if (!eldbus_message_arguments_get(msg, "s", &reason)) reason = NULL;
+   if (_self && _self->cancel_cb)
+     _self->cancel_cb(_self->cancel_data, reason);
    return eldbus_message_method_return_new(msg);
+}
+
+/* iwd may also call these for EAP networks. We don't have UI for them yet,
+ * so politely refuse — that just fails the connect attempt instead of
+ * getting our agent unregistered. */
+static Eldbus_Message *
+_unsupported_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
+                const Eldbus_Message *msg)
+{
+   return eldbus_message_error_new(msg,
+       "net.connman.iwd.Agent.Error.Canceled",
+       "Method not supported by this agent");
 }
 
 static Eldbus_Message *
@@ -70,6 +88,18 @@ static const Eldbus_Method _methods[] = {
    { "Cancel",
      ELDBUS_ARGS({ "s", "reason" }),
      NULL, _cancel_cb, 0 },
+   { "RequestPrivateKeyPassphrase",
+     ELDBUS_ARGS({ "o", "network" }),
+     ELDBUS_ARGS({ "s", "passphrase" }),
+     _unsupported_cb, 0 },
+   { "RequestUserNameAndPassword",
+     ELDBUS_ARGS({ "o", "network" }),
+     ELDBUS_ARGS({ "s", "user" }, { "s", "password" }),
+     _unsupported_cb, 0 },
+   { "RequestUserPassword",
+     ELDBUS_ARGS({ "o", "network" }, { "s", "user" }),
+     ELDBUS_ARGS({ "s", "password" }),
+     _unsupported_cb, 0 },
    { NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -135,6 +165,14 @@ iwd_agent_new(Eldbus_Connection *conn, Iwd_Agent_Passphrase_Cb cb, void *data)
                             "o", IWD_AGENT_PATH);
      }
    return a;
+}
+
+void
+iwd_agent_set_cancel_cb(Iwd_Agent *a, Iwd_Agent_Cancel_Cb cb, void *data)
+{
+   if (!a) return;
+   a->cancel_cb   = cb;
+   a->cancel_data = data;
 }
 
 void

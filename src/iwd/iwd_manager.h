@@ -42,4 +42,9 @@ void iwd_manager_set_passphrase_handler(Iwd_Manager *m,
                                         Iwd_Agent_Passphrase_Cb cb,
                                         void *data);
 
+/* Notified when iwd issues Agent.Cancel — UI should close any open prompt. */
+void iwd_manager_set_cancel_handler    (Iwd_Manager *m,
+                                        Iwd_Agent_Cancel_Cb cb,
+                                        void *data);
+
 #endif

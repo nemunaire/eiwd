@@ -43,6 +43,13 @@ iwd_manager_set_passphrase_handler(Iwd_Manager *m, Iwd_Agent_Passphrase_Cb cb, v
    m->pass_data = data;
 }
 
+void
+iwd_manager_set_cancel_handler(Iwd_Manager *m, Iwd_Agent_Cancel_Cb cb, void *data)
+{
+   if (!m) return;
+   iwd_agent_set_cancel_cb(m->agent, cb, data);
+}
+
 static void _recompute_state(Iwd_Manager *m);
 
 /* ----- listeners ------------------------------------------------------- */

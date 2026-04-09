@@ -13,8 +13,14 @@ typedef void (*Iwd_Agent_Passphrase_Cb)(void *data,
                                         Iwd_Agent_Request *req,
                                         const char *network_path);
 
+/* Fired when iwd issues a Cancel(reason) for the in-flight passphrase
+ * request — the UI should tear down any open auth dialog. */
+typedef void (*Iwd_Agent_Cancel_Cb)(void *data, const char *reason);
+
 Iwd_Agent *iwd_agent_new (Eldbus_Connection *conn,
                           Iwd_Agent_Passphrase_Cb cb, void *data);
+
+void iwd_agent_set_cancel_cb(Iwd_Agent *a, Iwd_Agent_Cancel_Cb cb, void *data);
 void       iwd_agent_free(Iwd_Agent *a);
 
 void iwd_agent_reply (Iwd_Agent_Request *req, const char *passphrase);
