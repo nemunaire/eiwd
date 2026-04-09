@@ -1,7 +1,10 @@
 #include "e_mod_main.h"
 #include "e_mod_gadget.h"
 #include "e_mod_popup.h"
+#include "e_mod_config.h"
 #include "iwd/iwd_manager.h"
+#include "iwd/iwd_device.h"
+#include "iwd/iwd_network.h"
 #include <e_gadcon.h>
 
 /* ----- per-instance gadget data --------------------------------------- */
@@ -17,6 +20,41 @@ static Eina_List *_instances = NULL;
 
 /* ----- icon update ----------------------------------------------------- */
 
+/* Walk the manager state to find the network we're currently connected to,
+ * if any. Used both for the signal-tier icon and for the tooltip. */
+static Iwd_Network *
+_active_network(void)
+{
+   if (!e_iwd || !e_iwd->manager) return NULL;
+   const Eina_Hash *devs = iwd_manager_devices(e_iwd->manager);
+   const Eina_Hash *nets = iwd_manager_networks(e_iwd->manager);
+   if (!devs || !nets) return NULL;
+   Eina_Iterator *it = eina_hash_iterator_data_new((Eina_Hash *)devs);
+   Iwd_Device *d;
+   Iwd_Network *found = NULL;
+   EINA_ITERATOR_FOREACH(it, d)
+     {
+        if (!d->connected_network) continue;
+        found = eina_hash_find(nets, d->connected_network);
+        if (found) break;
+     }
+   eina_iterator_free(it);
+   return found;
+}
+
+static const char *
+_icon_for_signal_tier(int tier)
+{
+   switch (tier)
+     {
+      case 4: return "network-wireless-signal-excellent";
+      case 3: return "network-wireless-signal-good";
+      case 2: return "network-wireless-signal-ok";
+      case 1: return "network-wireless-signal-weak";
+      default: return "network-wireless-signal-none";
+     }
+}
+
 static const char *
 _icon_name_for_state(Iwd_State s)
 {
@@ -26,10 +64,58 @@ _icon_name_for_state(Iwd_State s)
       case IWD_STATE_IDLE:       return "network-wireless-disconnected";
       case IWD_STATE_SCANNING:   return "network-wireless-acquiring";
       case IWD_STATE_CONNECTING: return "network-wireless-acquiring";
-      case IWD_STATE_CONNECTED:  return "network-wireless-signal-excellent";
+      case IWD_STATE_CONNECTED:
+        {
+           Iwd_Network *n = _active_network();
+           return _icon_for_signal_tier(n ? iwd_network_signal_tier(n) : 0);
+        }
       case IWD_STATE_ERROR:      return "network-error";
      }
    return "network-wireless";
+}
+
+static const char *
+_state_label(Iwd_State s)
+{
+   switch (s)
+     {
+      case IWD_STATE_OFF:        return "Wi-Fi disabled";
+      case IWD_STATE_IDLE:       return "Disconnected";
+      case IWD_STATE_SCANNING:   return "Scanning";
+      case IWD_STATE_CONNECTING: return "Connecting";
+      case IWD_STATE_CONNECTED:  return "Connected";
+      case IWD_STATE_ERROR:      return "Error";
+     }
+   return "";
+}
+
+static const char *
+_sec_label(int s)
+{
+   /* Iwd_Security values, kept in sync with iwd_network.h. */
+   switch (s) { case 0: return "open"; case 1: return "WPA";
+                case 2: return "802.1X"; case 3: return "WEP"; }
+   return "?";
+}
+
+static void
+_build_tooltip(Instance *inst, Iwd_State s)
+{
+   char buf[256];
+   if (s == IWD_STATE_CONNECTED)
+     {
+        Iwd_Network *n = _active_network();
+        if (n)
+          snprintf(buf, sizeof(buf), "Wi-Fi: %s — %s — signal %d/4",
+                   n->ssid ? n->ssid : "?",
+                   _sec_label(n->security),
+                   iwd_network_signal_tier(n));
+        else
+          snprintf(buf, sizeof(buf), "Wi-Fi: connected");
+     }
+   else
+     snprintf(buf, sizeof(buf), "Wi-Fi: %s", _state_label(s));
+   elm_object_tooltip_text_set(inst->o_base, buf);
 }
 
 static void
@@ -38,6 +124,7 @@ _inst_refresh(Instance *inst)
    if (!inst || !inst->o_icon || !e_iwd) return;
    Iwd_State s = iwd_manager_state(e_iwd->manager);
    e_icon_fdo_icon_set(inst->o_icon, _icon_name_for_state(s));
+   _build_tooltip(inst, s);
 }
 
 /* Listener invoked by iwd_manager whenever state changes. */
@@ -52,12 +139,36 @@ _on_manager_change(void *data EINA_UNUSED, Iwd_Manager *m EINA_UNUSED)
 /* ----- click → popup --------------------------------------------------- */
 
 static void
+_menu_settings_cb(void *data EINA_UNUSED, E_Menu *m EINA_UNUSED, E_Menu_Item *mi EINA_UNUSED)
+{
+   e_iwd_config_dialog_show();
+}
+
+static void
+_show_menu(Instance *inst, Evas_Event_Mouse_Down *ev)
+{
+   E_Zone *zone = e_zone_current_get();
+   E_Menu *m = e_menu_new();
+   E_Menu_Item *mi = e_menu_item_new(m);
+   e_menu_item_label_set(mi, "Settings");
+   e_util_menu_item_theme_icon_set(mi, "preferences-system");
+   e_menu_item_callback_set(mi, _menu_settings_cb, inst);
+
+   int x, y;
+   e_gadcon_canvas_zone_geometry_get(inst->gcc->gadcon, &x, &y, NULL, NULL);
+   e_menu_activate_mouse(m, zone, x + ev->output.x, y + ev->output.y,
+                         1, 1, E_MENU_POP_DIRECTION_AUTO, ev->timestamp);
+}
+
+static void
 _on_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info)
 {
    Evas_Event_Mouse_Down *ev = event_info;
    Instance *inst = data;
    if (ev->button == 1)
      e_iwd_popup_toggle(inst->gcc);
+   else if (ev->button == 3)
+     _show_menu(inst, ev);
 }
 
 /* ----- helpers --------------------------------------------------------- */
