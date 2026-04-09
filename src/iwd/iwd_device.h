@@ -31,8 +31,6 @@ struct _Iwd_Device
    Eldbus_Object     *obj;
    Eldbus_Proxy      *device_proxy;
    Eldbus_Proxy      *station_proxy;
-   Eldbus_Object     *adapter_obj;
-   Eldbus_Proxy      *adapter_proxy;
    Eldbus_Signal_Handler *sh_dev_props;
    Eldbus_Signal_Handler *sh_sta_props;
 
@@ -47,8 +45,7 @@ void iwd_device_apply_station_props(Iwd_Device *d, Eldbus_Message_Iter *props);
 void iwd_device_attach_station     (Iwd_Device *d);
 void iwd_device_detach_station     (Iwd_Device *d);
 
-void iwd_device_set_powered(Iwd_Device *d, Eina_Bool on);
-void iwd_device_scan       (Iwd_Device *d);
-void iwd_device_disconnect (Iwd_Device *d);
+void iwd_device_scan      (Iwd_Device *d);
+void iwd_device_disconnect(Iwd_Device *d);
 
 #endif

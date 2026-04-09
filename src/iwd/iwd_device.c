@@ -2,7 +2,6 @@
 #include "iwd_dbus.h"
 #include "iwd_props.h"
 #include "iwd_manager.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -126,11 +125,9 @@ iwd_device_free(Iwd_Device *d)
 {
    if (!d) return;
    iwd_device_detach_station(d);
-   if (d->sh_dev_props)  eldbus_signal_handler_del(d->sh_dev_props);
-   if (d->device_proxy)  eldbus_proxy_unref(d->device_proxy);
-   if (d->adapter_proxy) eldbus_proxy_unref(d->adapter_proxy);
-   if (d->adapter_obj)   eldbus_object_unref(d->adapter_obj);
-   if (d->obj)           eldbus_object_unref(d->obj);
+   if (d->sh_dev_props) eldbus_signal_handler_del(d->sh_dev_props);
+   if (d->device_proxy) eldbus_proxy_unref(d->device_proxy);
+   if (d->obj)          eldbus_object_unref(d->obj);
    free(d->path);
    free(d->name);
    free(d->address);
@@ -139,70 +136,16 @@ iwd_device_free(Iwd_Device *d)
    free(d);
 }
 
-static void
-_log_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
-{
-   const char *what = data;
-   const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em))
-     fprintf(stderr, "e_iwd: %s failed: %s: %s\n", what, en, em);
-   else
-     fprintf(stderr, "e_iwd: %s ok\n", what);
-}
-
-void
-iwd_device_set_powered(Iwd_Device *d, Eina_Bool on)
-{
-   if (!d) return;
-   Eina_Bool v = on;
-
-   /* Toggle the radio at the Adapter level — that's what actually takes
-    * the interface up/down on modern iwd. Device.Powered is a no-op on
-    * many installs. Keep the adapter proxy alive on the device so the
-    * pending property_set isn't canceled. */
-   if (d->adapter_path && d->obj && !d->adapter_proxy)
-     {
-        Eldbus_Connection *conn = eldbus_object_connection_get(d->obj);
-        d->adapter_obj = eldbus_object_get(conn, IWD_BUS_NAME, d->adapter_path);
-        if (d->adapter_obj)
-          d->adapter_proxy = eldbus_proxy_get(d->adapter_obj, IWD_IFACE_ADAPTER);
-     }
-   if (d->adapter_proxy)
-     eldbus_proxy_property_set(d->adapter_proxy, "Powered", "b", &v, _log_reply,
-                               on ? "Adapter.Powered=true"
-                                  : "Adapter.Powered=false");
-   else
-     fprintf(stderr, "e_iwd: set_powered: no Adapter for %s\n",
-             d->path ? d->path : "?");
-
-   if (d->device_proxy)
-     eldbus_proxy_property_set(d->device_proxy, "Powered", "b", &v, NULL, NULL);
-}
-
 void
 iwd_device_scan(Iwd_Device *d)
 {
-   if (!d)
-     {
-        fprintf(stderr, "e_iwd: scan: NULL device\n");
-        return;
-     }
-   if (!d->station_proxy)
-     {
-        fprintf(stderr, "e_iwd: scan: no Station proxy on %s\n",
-                d->path ? d->path : "?");
-        return;
-     }
-   eldbus_proxy_call(d->station_proxy, "Scan", _log_reply, "Scan", -1, "");
+   if (!d || !d->station_proxy) return;
+   eldbus_proxy_call(d->station_proxy, "Scan", NULL, NULL, -1, "");
 }
 
 void
 iwd_device_disconnect(Iwd_Device *d)
 {
-   if (!d || !d->station_proxy)
-     {
-        fprintf(stderr, "e_iwd: disconnect: missing Station proxy\n");
-        return;
-     }
-   eldbus_proxy_call(d->station_proxy, "Disconnect", _log_reply, "Disconnect", -1, "");
+   if (!d || !d->station_proxy) return;
+   eldbus_proxy_call(d->station_proxy, "Disconnect", NULL, NULL, -1, "");
 }
