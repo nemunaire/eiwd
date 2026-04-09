@@ -45,7 +45,8 @@ void iwd_device_apply_station_props(Iwd_Device *d, Eldbus_Message_Iter *props);
 void iwd_device_attach_station     (Iwd_Device *d);
 void iwd_device_detach_station     (Iwd_Device *d);
 
-void iwd_device_scan      (Iwd_Device *d);
-void iwd_device_disconnect(Iwd_Device *d);
+void iwd_device_scan             (Iwd_Device *d);
+void iwd_device_disconnect       (Iwd_Device *d);
+void iwd_device_connect_hidden   (Iwd_Device *d, const char *ssid);
 
 #endif

@@ -3,6 +3,7 @@
 #include "iwd_props.h"
 #include "iwd_manager.h"
 #include "iwd_network.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -197,4 +198,23 @@ iwd_device_disconnect(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
    eldbus_proxy_call(d->station_proxy, "Disconnect", NULL, NULL, -1, "");
+}
+
+static void
+_on_connect_hidden_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   const char *en, *em;
+   char *ssid = data;
+   if (eldbus_message_error_get(msg, &en, &em))
+     fprintf(stderr, "e_iwd: ConnectHiddenNetwork('%s') failed: %s: %s\n",
+             ssid ? ssid : "?", en, em);
+   free(ssid);
+}
+
+void
+iwd_device_connect_hidden(Iwd_Device *d, const char *ssid)
+{
+   if (!d || !d->station_proxy || !ssid || !*ssid) return;
+   eldbus_proxy_call(d->station_proxy, "ConnectHiddenNetwork",
+                     _on_connect_hidden_reply, strdup(ssid), -1, "s", ssid);
 }
