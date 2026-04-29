@@ -126,12 +126,24 @@ _on_net_clicked(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
    iwd_network_connect(n);
 }
 
+/* The Iwd_Network captured when the confirmation popup was opened may have
+ * disappeared (scan refresh, iwd restart) by the time the user clicks. We
+ * stash its object path on the popup and re-resolve through the live hash
+ * at click time so a stale pointer is never dereferenced. */
+static void _forget_confirm_free(void *data, Evas *e EINA_UNUSED,
+                                 Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
+{ free(data); }
+
 static void _forget_confirm_yes(void *data, Evas_Object *obj, void *ev EINA_UNUSED)
 {
-   /* The popup that owns the button is on `obj`'s parent chain — close it. */
-   Iwd_Network *n = data;
-   if (n) iwd_network_forget(n);
+   const char *netpath = data;
    Evas_Object *pp = evas_object_data_get(obj, "_eiwd_confirm_popup");
+   if (netpath && e_iwd && e_iwd->manager)
+     {
+        const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
+        Iwd_Network *n = h ? eina_hash_find(h, netpath) : NULL;
+        if (n) iwd_network_forget(n);
+     }
    if (pp) evas_object_del(pp);
 }
 
@@ -160,10 +172,17 @@ _on_net_forget(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
    elm_object_part_text_set(pp, "title,text", "Forget network");
    elm_object_text_set(pp, msg);
 
+   /* Weak ref by netpath — looked up at click time. Freed when the popup
+    * is destroyed (either button or the user closing the window). */
+   char *netpath_ref = n->path ? strdup(n->path) : NULL;
+   if (netpath_ref)
+     evas_object_event_callback_add(pp, EVAS_CALLBACK_DEL,
+                                    _forget_confirm_free, netpath_ref);
+
    Evas_Object *yes = elm_button_add(pp);
    elm_object_text_set(yes, "Forget");
    evas_object_data_set(yes, "_eiwd_confirm_popup", pp);
-   evas_object_smart_callback_add(yes, "clicked", _forget_confirm_yes, n);
+   evas_object_smart_callback_add(yes, "clicked", _forget_confirm_yes, netpath_ref);
    elm_object_part_content_set(pp, "button1", yes);
 
    Evas_Object *no = elm_button_add(pp);
