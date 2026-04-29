@@ -231,13 +231,23 @@ _rebuild_list(Popup *p)
         evas_object_size_hint_align_set(row, EVAS_HINT_FILL, 0);
 
         Evas_Object *btn = elm_button_add(row);
-        /* Truncate long SSIDs so the row never forces horizontal scrolling. */
+        /* Truncate long SSIDs so the row never forces horizontal scrolling.
+         * Count codepoints, not bytes — SSIDs may contain UTF-8 and naive
+         * byte truncation would split a multi-byte sequence. */
         const char *raw_ssid = n->ssid ? n->ssid : "(hidden)";
-        char ssid_buf[32];
-        const int max_ssid = 22;
-        if ((int)strlen(raw_ssid) > max_ssid)
+        char ssid_buf[64];
+        const int max_chars = 21;
+        int iindex = 0, prev = 0, chars = 0;
+        while (chars < max_chars
+               && eina_unicode_utf8_next_get(raw_ssid, &iindex))
+          { prev = iindex; chars++; }
+        if (eina_unicode_utf8_next_get(raw_ssid, &iindex))
           {
-             snprintf(ssid_buf, sizeof(ssid_buf), "%.*s…", max_ssid - 1, raw_ssid);
+             /* more remains — truncate at `prev` and append U+2026 */
+             int copy = prev < (int)sizeof(ssid_buf) - 4
+                        ? prev : (int)sizeof(ssid_buf) - 4;
+             memcpy(ssid_buf, raw_ssid, copy);
+             memcpy(ssid_buf + copy, "\xe2\x80\xa6", 4); /* "…" + NUL */
              raw_ssid = ssid_buf;
           }
         char label[256];
