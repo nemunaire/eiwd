@@ -152,12 +152,53 @@ _on_net_clicked(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
    iwd_network_connect(n);
 }
 
+static void _forget_confirm_yes(void *data, Evas_Object *obj, void *ev EINA_UNUSED)
+{
+   /* The popup that owns the button is on `obj`'s parent chain — close it. */
+   Iwd_Network *n = data;
+   if (n) iwd_network_forget(n);
+   Evas_Object *pp = evas_object_data_get(obj, "_eiwd_confirm_popup");
+   if (pp) evas_object_del(pp);
+}
+
+static void _forget_confirm_no(void *data EINA_UNUSED, Evas_Object *obj, void *ev EINA_UNUSED)
+{
+   Evas_Object *pp = evas_object_data_get(obj, "_eiwd_confirm_popup");
+   if (pp) evas_object_del(pp);
+}
+
 static void
 _on_net_forget(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
 {
    Iwd_Network *n = data;
    if (!n) return;
-   iwd_network_forget(n);
+
+   /* Forget destroys the saved passphrase irreversibly — confirm first.
+    * A stray click on the ✕ next to a known network would otherwise wipe
+    * credentials with no recovery. */
+   Evas_Object *parent = _popup ? _popup->box : e_comp->elm;
+   Evas_Object *pp = elm_popup_add(parent);
+   char msg[256];
+   snprintf(msg, sizeof(msg),
+            "Forget saved network <b>%s</b>?<br/>"
+            "The passphrase will be permanently deleted.",
+            n->ssid ? n->ssid : "(hidden)");
+   elm_object_part_text_set(pp, "title,text", "Forget network");
+   elm_object_text_set(pp, msg);
+
+   Evas_Object *yes = elm_button_add(pp);
+   elm_object_text_set(yes, "Forget");
+   evas_object_data_set(yes, "_eiwd_confirm_popup", pp);
+   evas_object_smart_callback_add(yes, "clicked", _forget_confirm_yes, n);
+   elm_object_part_content_set(pp, "button1", yes);
+
+   Evas_Object *no = elm_button_add(pp);
+   elm_object_text_set(no, "Cancel");
+   evas_object_data_set(no, "_eiwd_confirm_popup", pp);
+   evas_object_smart_callback_add(no, "clicked", _forget_confirm_no, NULL);
+   elm_object_part_content_set(pp, "button2", no);
+
+   evas_object_show(pp);
 }
 
 static void
