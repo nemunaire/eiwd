@@ -1,5 +1,6 @@
 #include "wifi_hidden.h"
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct _Hidden_Ctx
 {
@@ -17,9 +18,31 @@ _finish(Hidden_Ctx *c, Eina_Bool ok)
 {
    if (c->fired) return;
    c->fired = EINA_TRUE;
-   const char *ssid = ok ? elm_entry_entry_get(c->e_ssid) : NULL;
-   const char *pass = ok ? elm_entry_entry_get(c->e_pass) : NULL;
+
+   /* Copy SSID + passphrase into buffers we own; wipe the passphrase
+    * (and overwrite the entry) before the window is destroyed. */
+   char *ssid = NULL, *pass = NULL;
+   if (ok)
+     {
+        if (c->e_ssid)
+          {
+             const char *r = elm_entry_entry_get(c->e_ssid);
+             if (r) ssid = strdup(r);
+          }
+        if (c->e_pass)
+          {
+             const char *r = elm_entry_entry_get(c->e_pass);
+             if (r) pass = strdup(r);
+          }
+     }
    if (c->cb) c->cb(c->data, ssid, pass, ok);
+   if (pass)
+     {
+        explicit_bzero(pass, strlen(pass));
+        free(pass);
+     }
+   free(ssid);
+   if (c->e_pass) elm_entry_entry_set(c->e_pass, "");
    if (c->win) evas_object_del(c->win);
    free(c);
 }
@@ -42,7 +65,11 @@ _on_cancel(void *data, Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
 static void
 _on_del(void *data, Evas *e EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
 {
-   _finish(data, EINA_FALSE);
+   Hidden_Ctx *c = data;
+   c->win = NULL;
+   c->e_ssid = NULL;
+   c->e_pass = NULL;
+   _finish(c, EINA_FALSE);
 }
 
 static Evas_Object *

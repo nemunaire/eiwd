@@ -222,7 +222,14 @@ _on_iface_removed(void *data, const char *path, const char *iface)
 }
 
 static void
-_on_name_appeared(void *data EINA_UNUSED) { /* GetManagedObjects will populate */ }
+_on_name_appeared(void *data)
+{
+   /* GetManagedObjects will repopulate adapters/devices/networks; we just
+    * need to re-register our agent against the new iwd instance. Without
+    * this, PSK connects silently hang after `systemctl restart iwd`. */
+   Iwd_Manager *m = data;
+   if (m && m->agent) iwd_agent_register(m->agent);
+}
 
 static void
 _on_name_vanished(void *data)

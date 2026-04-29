@@ -42,6 +42,7 @@ e_modapi_shutdown(E_Module *m EINA_UNUSED)
    if (!e_iwd) return 1;
 
    e_iwd_gadget_shutdown();
+   e_iwd_popup_shutdown();
    if (e_iwd->manager) iwd_manager_free(e_iwd->manager);
    e_iwd_config_save();
    if (e_iwd->conn) eldbus_connection_unref(e_iwd->conn);

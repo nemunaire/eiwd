@@ -1,5 +1,6 @@
 #include "wifi_auth.h"
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct _Auth_Ctx
 {
@@ -12,11 +13,27 @@ typedef struct _Auth_Ctx
 } Auth_Ctx;
 
 static void
-_finish(Auth_Ctx *c, Eina_Bool ok, const char *pass)
+_finish(Auth_Ctx *c, Eina_Bool ok)
 {
    if (c->fired) return;
    c->fired = EINA_TRUE;
+
+   /* Copy the passphrase into a buffer we own so we can wipe it
+    * after the callback returns. The elm_entry's internal buffer
+    * is then overwritten before the window (and entry) are destroyed. */
+   char *pass = NULL;
+   if (ok && c->entry)
+     {
+        const char *raw = elm_entry_entry_get(c->entry);
+        if (raw) pass = strdup(raw);
+     }
    if (c->cb) c->cb(c->data, pass, ok);
+   if (pass)
+     {
+        explicit_bzero(pass, strlen(pass));
+        free(pass);
+     }
+   if (c->entry) elm_entry_entry_set(c->entry, "");
    if (c->win) evas_object_del(c->win);
    free(c);
 }
@@ -24,21 +41,25 @@ _finish(Auth_Ctx *c, Eina_Bool ok, const char *pass)
 static void
 _on_ok(void *data, Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
 {
-   Auth_Ctx *c = data;
-   _finish(c, EINA_TRUE, elm_entry_entry_get(c->entry));
+   _finish(data, EINA_TRUE);
 }
 
 static void
 _on_cancel(void *data, Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
 {
-   _finish(data, EINA_FALSE, NULL);
+   _finish(data, EINA_FALSE);
 }
 
 static void
 _on_del(void *data, Evas *e EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
 {
    /* Window closed without cancel/ok — treat as cancel. */
-   _finish(data, EINA_FALSE, NULL);
+   Auth_Ctx *c = data;
+   /* The window (and entry) are being destroyed; null entry to skip the
+    * post-cb entry_set in _finish. */
+   c->win = NULL;
+   c->entry = NULL;
+   _finish(c, EINA_FALSE);
 }
 
 Evas_Object *

@@ -143,6 +143,14 @@ _on_register(void *data EINA_UNUSED, const Eldbus_Message *msg,
      fprintf(stderr, "e_iwd: agent register failed: %s: %s\n", en, em);
 }
 
+void
+iwd_agent_register(Iwd_Agent *a)
+{
+   if (!a || !a->am_proxy) return;
+   eldbus_proxy_call(a->am_proxy, "RegisterAgent", _on_register, NULL, -1,
+                     "o", IWD_AGENT_PATH);
+}
+
 Iwd_Agent *
 iwd_agent_new(Eldbus_Connection *conn, Iwd_Agent_Passphrase_Cb cb, void *data)
 {
@@ -158,12 +166,8 @@ iwd_agent_new(Eldbus_Connection *conn, Iwd_Agent_Passphrase_Cb cb, void *data)
 
    a->am_obj = eldbus_object_get(conn, IWD_BUS_NAME, "/net/connman/iwd");
    if (a->am_obj)
-     {
-        a->am_proxy = eldbus_proxy_get(a->am_obj, IWD_IFACE_AGENT_MANAGER);
-        if (a->am_proxy)
-          eldbus_proxy_call(a->am_proxy, "RegisterAgent", _on_register, NULL, -1,
-                            "o", IWD_AGENT_PATH);
-     }
+     a->am_proxy = eldbus_proxy_get(a->am_obj, IWD_IFACE_AGENT_MANAGER);
+   iwd_agent_register(a);
    return a;
 }
 

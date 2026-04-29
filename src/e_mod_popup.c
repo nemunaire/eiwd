@@ -30,8 +30,39 @@ static Popup *_popup = NULL;
 static Iwd_Agent_Request *_pending_req = NULL;
 /* Tracked so iwd's Cancel(reason) can tear down the dialog. */
 static Evas_Object *_pending_dialog = NULL;
-/* One-shot passphrase pre-armed by the hidden-network dialog. */
-static char *_hidden_pending_pass = NULL;
+/* One-shot passphrase pre-armed by the hidden-network dialog. Bound to the
+ * SSID it was entered for, with a timeout that wipes it if iwd never comes
+ * asking — so a stashed passphrase can never leak to an unrelated network. */
+static char     *_hidden_pending_pass = NULL;
+static char     *_hidden_pending_ssid = NULL;
+static Ecore_Timer *_hidden_pending_timer = NULL;
+#define HIDDEN_PASS_TIMEOUT 30.0  /* seconds */
+
+static void
+_hidden_pending_clear(void)
+{
+   if (_hidden_pending_pass)
+     {
+        explicit_bzero(_hidden_pending_pass, strlen(_hidden_pending_pass));
+        free(_hidden_pending_pass);
+        _hidden_pending_pass = NULL;
+     }
+   free(_hidden_pending_ssid);
+   _hidden_pending_ssid = NULL;
+   if (_hidden_pending_timer)
+     {
+        ecore_timer_del(_hidden_pending_timer);
+        _hidden_pending_timer = NULL;
+     }
+}
+
+static Eina_Bool
+_hidden_pending_timeout(void *data EINA_UNUSED)
+{
+   _hidden_pending_timer = NULL;
+   _hidden_pending_clear();
+   return ECORE_CALLBACK_CANCEL;
+}
 
 /* ----- helpers --------------------------------------------------------- */
 
@@ -249,10 +280,19 @@ _on_hidden_done(void *data EINA_UNUSED, const char *ssid, const char *pass, Eina
    if (!ok || !ssid || !*ssid) return;
    Iwd_Device *dev = _active_device();
    if (!dev) return;
-   /* Pre-arm the agent reply so the next RequestPassphrase from iwd is
-    * answered automatically. If the network turns out to be open, the
-    * stashed passphrase is simply never consumed. */
-   if (pass && *pass) _hidden_pending_pass = strdup(pass);
+   /* Pre-arm the agent reply so the next RequestPassphrase from iwd for
+    * *this SSID* is answered automatically. The stash is bound to the SSID
+    * and self-clears after HIDDEN_PASS_TIMEOUT seconds — so a typo'd or
+    * out-of-range SSID cannot cause the passphrase to leak to a later,
+    * unrelated network whose RequestPassphrase happens to land first. */
+   _hidden_pending_clear();
+   if (pass && *pass)
+     {
+        _hidden_pending_pass = strdup(pass);
+        _hidden_pending_ssid = strdup(ssid);
+        _hidden_pending_timer = ecore_timer_add(HIDDEN_PASS_TIMEOUT,
+                                                _hidden_pending_timeout, NULL);
+     }
    iwd_device_connect_hidden(dev, ssid);
 }
 
@@ -267,7 +307,12 @@ static void
 _on_auth_done(void *data EINA_UNUSED, const char *pass, Eina_Bool ok)
 {
    _pending_dialog = NULL;
-   if (!_pending_req) return;
+   if (!_pending_req)
+     {
+        /* Request was already canceled by iwd; nothing to do. The caller
+         * (wifi_auth) wipes its own copy of `pass` after we return. */
+        return;
+     }
    if (ok) iwd_agent_reply (_pending_req, pass ? pass : "");
    else    iwd_agent_cancel(_pending_req);
    _pending_req = NULL;
@@ -303,15 +348,27 @@ e_iwd_popup_install_passphrase_handler(void)
 static void
 _on_passphrase_request(void *data EINA_UNUSED, Iwd_Agent_Request *req, const char *netpath)
 {
-   /* If the user just kicked off a hidden-network connect with a passphrase,
-    * answer this request automatically without prompting. */
-   if (_hidden_pending_pass)
+   /* Resolve netpath -> network so we can both match the hidden stash
+    * against the requested SSID *and* show a friendly label in the dialog. */
+   Iwd_Network *n = NULL;
+   if (e_iwd && e_iwd->manager)
+     {
+        const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
+        if (h) n = eina_hash_find(h, netpath);
+     }
+   const char *req_ssid = (n && n->ssid) ? n->ssid : NULL;
+
+   /* Use the hidden-network stash *only* if iwd is asking for the same
+    * SSID we entered it for. Anything else: drop the stash on the floor
+    * and prompt normally. */
+   if (_hidden_pending_pass && _hidden_pending_ssid &&
+       req_ssid && !strcmp(req_ssid, _hidden_pending_ssid))
      {
         iwd_agent_reply(req, _hidden_pending_pass);
-        free(_hidden_pending_pass);
-        _hidden_pending_pass = NULL;
+        _hidden_pending_clear();
         return;
      }
+
    if (_pending_req)
      {
         iwd_agent_cancel(req);
@@ -319,27 +376,8 @@ _on_passphrase_request(void *data EINA_UNUSED, Iwd_Agent_Request *req, const cha
      }
    _pending_req = req;
 
-   /* Look up the network for a friendly SSID, if we have it. */
-   const char *ssid = "network";
-   if (e_iwd && e_iwd->manager)
-     {
-        const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
-        if (h)
-          {
-             Iwd_Network *n = eina_hash_find(h, netpath);
-             if (n && n->ssid) ssid = n->ssid;
-          }
-     }
-   const char *sec = NULL;
-   if (e_iwd && e_iwd->manager)
-     {
-        const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
-        if (h)
-          {
-             Iwd_Network *n = eina_hash_find(h, netpath);
-             if (n) sec = _sec_label(n->security);
-          }
-     }
+   const char *ssid = req_ssid ? req_ssid : "network";
+   const char *sec  = n ? _sec_label(n->security) : NULL;
    _pending_dialog = wifi_auth_prompt(_popup ? _popup->box : e_comp->elm,
                                       ssid, sec, _on_auth_done, NULL);
 }
@@ -355,6 +393,13 @@ _destroy(void)
    if (_popup->gp) e_object_del(E_OBJECT(_popup->gp));
    free(_popup);
    _popup = NULL;
+}
+
+void
+e_iwd_popup_shutdown(void)
+{
+   _destroy();
+   _hidden_pending_clear();
 }
 
 void

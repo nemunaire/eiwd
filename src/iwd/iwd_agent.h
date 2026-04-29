@@ -21,6 +21,10 @@ Iwd_Agent *iwd_agent_new (Eldbus_Connection *conn,
                           Iwd_Agent_Passphrase_Cb cb, void *data);
 
 void iwd_agent_set_cancel_cb(Iwd_Agent *a, Iwd_Agent_Cancel_Cb cb, void *data);
+/* Re-issue RegisterAgent. Call after iwd reappears on the bus
+ * (NameOwnerChanged) — without this, every PSK connect silently hangs
+ * because no agent is registered against the new iwd instance. */
+void       iwd_agent_register(Iwd_Agent *a);
 void       iwd_agent_free(Iwd_Agent *a);
 
 void iwd_agent_reply (Iwd_Agent_Request *req, const char *passphrase);
