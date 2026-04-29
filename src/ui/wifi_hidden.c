@@ -104,6 +104,7 @@ void
 wifi_hidden_prompt(Evas_Object *parent EINA_UNUSED, Wifi_Hidden_Cb cb, void *data)
 {
    Hidden_Ctx *c = calloc(1, sizeof(*c));
+   if (!c) { if (cb) cb(data, NULL, NULL, EINA_FALSE); return; }
    c->cb = cb; c->data = data;
 
    /* Floating top-level so the popup actually shows. */

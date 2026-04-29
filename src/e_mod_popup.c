@@ -523,6 +523,7 @@ e_iwd_popup_toggle(E_Gadcon_Client *gcc)
    if (!gcc || !e_iwd) return;
 
    Popup *p = calloc(1, sizeof(*p));
+   if (!p) return;
    _popup = p;
 
    p->gp = e_gadcon_popup_new(gcc, EINA_FALSE);

@@ -68,6 +68,7 @@ wifi_auth_prompt(Evas_Object *parent EINA_UNUSED, const char *ssid,
                  Wifi_Auth_Cb cb, void *data)
 {
    Auth_Ctx *c = calloc(1, sizeof(*c));
+   if (!c) return NULL;
    c->cb = cb; c->data = data;
 
    /* A floating top-level window so the popup is actually visible —

@@ -73,6 +73,9 @@ _request_passphrase_cb(const Eldbus_Service_Interface *iface EINA_UNUSED,
                                      "No UI handler");
 
    Iwd_Agent_Request *req = calloc(1, sizeof(*req));
+   if (!req)
+     return eldbus_message_error_new(msg, "net.connman.iwd.Agent.Error.Canceled",
+                                     "Out of memory");
    req->agent = _self;
    req->msg   = eldbus_message_ref((Eldbus_Message *)msg);
    _self->cb(_self->data, req, path);

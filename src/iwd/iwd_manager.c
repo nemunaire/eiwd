@@ -63,6 +63,7 @@ iwd_manager_listener_add(Iwd_Manager *m, Iwd_Manager_Cb cb, void *data)
 {
    if (!m || !cb) return;
    Listener *l = calloc(1, sizeof(*l));
+   if (!l) return;
    l->cb = cb; l->data = data;
    m->listeners = eina_list_append(m->listeners, l);
 }
