@@ -41,7 +41,15 @@ _finish(Hidden_Ctx *c, Eina_Bool ok)
         explicit_bzero(pass, strlen(pass));
         free(pass);
      }
-   free(ssid);
+   /* SSIDs aren't secret, but wiping keeps the heap consistent with the
+    * passphrase handling and avoids leaving identifiable network names in
+    * freed memory after a hidden-network prompt. */
+   if (ssid)
+     {
+        explicit_bzero(ssid, strlen(ssid));
+        free(ssid);
+     }
+   if (c->e_ssid) elm_entry_entry_set(c->e_ssid, "");
    if (c->e_pass) elm_entry_entry_set(c->e_pass, "");
    if (c->win) evas_object_del(c->win);
    free(c);
