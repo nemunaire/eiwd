@@ -30,9 +30,8 @@ e_iwd_config_load(void)
    /* Missing or out-of-date — start fresh with defaults. */
    if (e_iwd_config)
      {
-        if (e_iwd_config->preferred_adapter)
-          eina_stringshare_del(e_iwd_config->preferred_adapter);
-        free(e_iwd_config);
+        eina_stringshare_replace(&e_iwd_config->preferred_adapter, NULL);
+        E_FREE(e_iwd_config);
      }
    e_iwd_config = E_NEW(E_Iwd_Config, 1);
    e_iwd_config->version          = CONFIG_VERSION;
