@@ -3,6 +3,7 @@
 #include "iwd_adapter.h"
 #include "iwd_device.h"
 #include "iwd_network.h"
+#include <Ecore.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,7 +22,7 @@ struct _Iwd_Manager
    Eina_Hash   *networks;  /* path → Iwd_Network * */
    Eina_List   *listeners; /* Listener * */
    Iwd_State    state;
-   Eina_Bool    notify_pending;
+   Ecore_Job   *notify_job;
 
    Iwd_Agent_Passphrase_Cb pass_cb;
    void                   *pass_data;
@@ -78,15 +79,27 @@ iwd_manager_listener_del(Iwd_Manager *m, Iwd_Manager_Cb cb, void *data)
        }
 }
 
-void
-iwd_manager_notify(Iwd_Manager *m)
+/* Coalesce bursts of D-Bus PropertiesChanged into a single UI refresh per
+ * main-loop tick. Without this, a busy area (30+ visible networks, scan in
+ * progress) can fire hundreds of notifies per second, each rebuilding the
+ * popup list synchronously and freezing the whole compositor. */
+static void
+_notify_job_cb(void *data)
 {
-   if (!m) return;
+   Iwd_Manager *m = data;
+   m->notify_job = NULL;
    _recompute_state(m);
    Eina_List *l;
    Listener *li;
    EINA_LIST_FOREACH(m->listeners, l, li)
      li->cb(li->data, m);
+}
+
+void
+iwd_manager_notify(Iwd_Manager *m)
+{
+   if (!m || m->notify_job) return;
+   m->notify_job = ecore_job_add(_notify_job_cb, m);
 }
 
 /* ----- state aggregation ---------------------------------------------- */
@@ -253,6 +266,7 @@ void
 iwd_manager_free(Iwd_Manager *m)
 {
    if (!m) return;
+   if (m->notify_job) ecore_job_del(m->notify_job);
    iwd_agent_free(m->agent);
    iwd_dbus_free(m->dbus);
    eina_hash_free(m->adapters);
