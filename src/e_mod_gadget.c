@@ -5,6 +5,7 @@
 #include "iwd/iwd_manager.h"
 #include "iwd/iwd_device.h"
 #include "iwd/iwd_network.h"
+#include "iwd/iwd_labels.h"
 #include <e_gadcon.h>
 #include <limits.h>
 
@@ -75,30 +76,6 @@ _icon_name_for_state(Iwd_State s)
    return "network-wireless";
 }
 
-static const char *
-_state_label(Iwd_State s)
-{
-   switch (s)
-     {
-      case IWD_STATE_OFF:        return "Wi-Fi disabled";
-      case IWD_STATE_IDLE:       return "Disconnected";
-      case IWD_STATE_SCANNING:   return "Scanning";
-      case IWD_STATE_CONNECTING: return "Connecting";
-      case IWD_STATE_CONNECTED:  return "Connected";
-      case IWD_STATE_ERROR:      return "Error";
-     }
-   return "";
-}
-
-static const char *
-_sec_label(int s)
-{
-   /* Iwd_Security values, kept in sync with iwd_network.h. */
-   switch (s) { case 0: return "open"; case 1: return "WPA";
-                case 2: return "802.1X"; case 3: return "WEP"; }
-   return "?";
-}
-
 static void
 _build_tooltip(Instance *inst, Iwd_State s)
 {
@@ -109,13 +86,13 @@ _build_tooltip(Instance *inst, Iwd_State s)
         if (n)
           snprintf(buf, sizeof(buf), "Wi-Fi: %s — %s — signal %d/4",
                    n->ssid ? n->ssid : "?",
-                   _sec_label(n->security),
+                   iwd_security_label(n->security),
                    iwd_network_signal_tier(n));
         else
           snprintf(buf, sizeof(buf), "Wi-Fi: connected");
      }
    else
-     snprintf(buf, sizeof(buf), "Wi-Fi: %s", _state_label(s));
+     snprintf(buf, sizeof(buf), "Wi-Fi: %s", iwd_state_label(s));
    elm_object_tooltip_text_set(inst->o_base, buf);
 }
 

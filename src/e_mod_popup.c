@@ -4,6 +4,7 @@
 #include "iwd/iwd_device.h"
 #include "iwd/iwd_network.h"
 #include "iwd/iwd_agent.h"
+#include "iwd/iwd_labels.h"
 #include "ui/wifi_auth.h"
 #include "ui/wifi_hidden.h"
 #include <e_gadcon_popup.h>
@@ -65,33 +66,6 @@ _hidden_pending_timeout(void *data EINA_UNUSED)
 }
 
 /* ----- helpers --------------------------------------------------------- */
-
-static const char *
-_state_label(Iwd_State s)
-{
-   switch (s) {
-    case IWD_STATE_OFF:        return "Wi-Fi disabled";
-    case IWD_STATE_IDLE:       return "Disconnected";
-    case IWD_STATE_SCANNING:   return "Scanning…";
-    case IWD_STATE_CONNECTING: return "Connecting…";
-    case IWD_STATE_CONNECTED:  return "Connected";
-    case IWD_STATE_ERROR:      return "Error";
-   }
-   return "";
-}
-
-static const char *
-_sec_label(Iwd_Security s)
-{
-   switch (s) {
-    case IWD_SEC_OPEN:    return "open";
-    case IWD_SEC_PSK:     return "WPA";
-    case IWD_SEC_8021X:   return "802.1X";
-    case IWD_SEC_WEP:     return "WEP";
-    case IWD_SEC_UNKNOWN: return "?";
-   }
-   return "";
-}
 
 static int
 _net_cmp(const void *a, const void *b)
@@ -255,7 +229,7 @@ _rebuild_list(Popup *p)
                  _signal_bars(iwd_network_signal_tier(n)),
                  n->known_path ? "★ " : "  ",
                  raw_ssid,
-                 _sec_label(n->security),
+                 iwd_security_label(n->security),
                  n->connected ? "  ✔" : "");
         elm_object_text_set(btn, label);
         evas_object_size_hint_weight_set(btn, EVAS_HINT_EXPAND, 0);
@@ -291,11 +265,11 @@ _refresh(Popup *p)
         if (err)
           {
              char buf[320];
-             snprintf(buf, sizeof(buf), "%s — %s", _state_label(s), err);
+             snprintf(buf, sizeof(buf), "%s — %s", iwd_state_label(s), err);
              elm_object_text_set(p->status_lbl, buf);
           }
         else
-          elm_object_text_set(p->status_lbl, _state_label(s));
+          elm_object_text_set(p->status_lbl, iwd_state_label(s));
      }
    if (p->btn_toggle)
      elm_object_text_set(p->btn_toggle, s == IWD_STATE_OFF ? "Enable" : "Disable");
@@ -444,7 +418,7 @@ _on_passphrase_request(void *data EINA_UNUSED, Iwd_Agent_Request *req, const cha
    _pending_req = req;
 
    const char *ssid = req_ssid ? req_ssid : "network";
-   const char *sec  = n ? _sec_label(n->security) : NULL;
+   const char *sec  = n ? iwd_security_label(n->security) : NULL;
    _pending_dialog = wifi_auth_prompt(_popup ? _popup->box : e_comp->elm,
                                       ssid, sec, _on_auth_done, NULL);
 }
