@@ -148,10 +148,15 @@ iwd_device_free(Iwd_Device *d)
 
 /* Reply to Station.GetOrderedNetworks: a(on) — list of (object_path, RSSI).
  * RSSI is a 16-bit signed value in 100*dBm units. */
+/* Reply callbacks must not hold a raw Iwd_Device back-ref: a device can be
+ * removed (rfkill, hot-unplug, iwd restart) while a call is in flight, and
+ * the reply would then UAF. The manager outlives every sub-object, so we
+ * pass it directly. Network lookups go through the live hash, which is
+ * safe even after the originating device is gone. */
 static void
 _on_ordered_networks(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
 {
-   Iwd_Device *d = data;
+   Iwd_Manager *m = data;
    const char *en, *em;
    if (eldbus_message_error_get(msg, &en, &em)) return;
 
@@ -159,7 +164,7 @@ _on_ordered_networks(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EI
    if (!eldbus_message_arguments_get(msg, "a(on)", &array) || !array)
      return;
 
-   const Eina_Hash *nets = d->manager ? iwd_manager_networks(d->manager) : NULL;
+   const Eina_Hash *nets = m ? iwd_manager_networks(m) : NULL;
    Eldbus_Message_Iter *entry;
    Eina_Bool any = EINA_FALSE;
    while (eldbus_message_iter_get_and_next(array, 'r', &entry))
@@ -174,7 +179,7 @@ _on_ordered_networks(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EI
         n->have_signal = EINA_TRUE;
         any = EINA_TRUE;
      }
-   if (any && d->manager) iwd_manager_notify(d->manager);
+   if (any && m) iwd_manager_notify(m);
 }
 
 static void
@@ -182,13 +187,13 @@ _refresh_signals(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
    eldbus_proxy_call(d->station_proxy, "GetOrderedNetworks",
-                     _on_ordered_networks, d, -1, "");
+                     _on_ordered_networks, d->manager, -1, "");
 }
 
 static void
 _on_scan_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
 {
-   Iwd_Device *d = data;
+   Iwd_Manager *m = data;
    const char *en, *em;
    if (!eldbus_message_error_get(msg, &en, &em)) return;
    /* "AlreadyExists" / "InProgress" is the normal race when two scan
@@ -196,38 +201,37 @@ _on_scan_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNU
    if (en && (strstr(en, "InProgress") || strstr(en, "Busy") ||
               strstr(en, "AlreadyExists")))
      return;
-   if (d->manager)
-     iwd_manager_report_error(d->manager, "Scan failed: %s", em ? em : en);
+   if (m) iwd_manager_report_error(m, "Scan failed: %s", em ? em : en);
 }
 
 void
 iwd_device_scan(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
-   eldbus_proxy_call(d->station_proxy, "Scan", _on_scan_reply, d, -1, "");
+   eldbus_proxy_call(d->station_proxy, "Scan", _on_scan_reply, d->manager, -1, "");
 }
 
 static void
 _on_disconnect_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
 {
-   Iwd_Device *d = data;
+   Iwd_Manager *m = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em) && d->manager)
-     iwd_manager_report_error(d->manager,
-                              "Disconnect failed: %s", em ? em : en);
+   if (eldbus_message_error_get(msg, &en, &em) && m)
+     iwd_manager_report_error(m, "Disconnect failed: %s", em ? em : en);
 }
 
 void
 iwd_device_disconnect(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
-   eldbus_proxy_call(d->station_proxy, "Disconnect", _on_disconnect_reply, d, -1, "");
+   eldbus_proxy_call(d->station_proxy, "Disconnect",
+                     _on_disconnect_reply, d->manager, -1, "");
 }
 
 typedef struct
 {
-   Iwd_Device *d;
-   char       *ssid;
+   Iwd_Manager *m;
+   char        *ssid;
 } _Connect_Hidden_Ctx;
 
 static void
@@ -235,8 +239,8 @@ _on_connect_hidden_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *
 {
    _Connect_Hidden_Ctx *ctx = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em) && ctx->d->manager)
-     iwd_manager_report_error(ctx->d->manager,
+   if (eldbus_message_error_get(msg, &en, &em) && ctx->m)
+     iwd_manager_report_error(ctx->m,
                               "Connect to hidden '%s' failed: %s",
                               ctx->ssid ? ctx->ssid : "?", em ? em : en);
    free(ctx->ssid);
@@ -249,7 +253,7 @@ iwd_device_connect_hidden(Iwd_Device *d, const char *ssid)
    if (!d || !d->station_proxy || !ssid || !*ssid) return;
    _Connect_Hidden_Ctx *ctx = calloc(1, sizeof(*ctx));
    if (!ctx) return;
-   ctx->d    = d;
+   ctx->m    = d->manager;
    ctx->ssid = strdup(ssid);
    eldbus_proxy_call(d->station_proxy, "ConnectHiddenNetwork",
                      _on_connect_hidden_reply, ctx, -1, "s", ssid);
