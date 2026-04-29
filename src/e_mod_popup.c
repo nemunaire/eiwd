@@ -232,6 +232,17 @@ _rebuild_list(Popup *p)
                  iwd_security_label(n->security),
                  n->connected ? "  ✔" : "");
         elm_object_text_set(btn, label);
+        /* Spoken label: avoids the ▂▄▆█ glyphs and ★/✔ markers which
+         * screen readers announce as raw Unicode. */
+        char access[256];
+        snprintf(access, sizeof(access),
+                 "%s, signal %d of 4, %s%s%s",
+                 raw_ssid,
+                 iwd_network_signal_tier(n),
+                 iwd_security_label(n->security),
+                 n->known_path ? ", saved" : "",
+                 n->connected ? ", connected" : "");
+        elm_object_access_info_set(btn, access);
         evas_object_size_hint_weight_set(btn, EVAS_HINT_EXPAND, 0);
         evas_object_size_hint_align_set(btn, EVAS_HINT_FILL, 0);
         evas_object_smart_callback_add(btn, "clicked", _on_net_clicked, n);
@@ -243,6 +254,9 @@ _rebuild_list(Popup *p)
              Evas_Object *fb = elm_button_add(row);
              elm_object_text_set(fb, "✕");
              elm_object_tooltip_text_set(fb, "Forget network");
+             char facc[128];
+             snprintf(facc, sizeof(facc), "Forget %s", raw_ssid);
+             elm_object_access_info_set(fb, facc);
              evas_object_smart_callback_add(fb, "clicked", _on_net_forget, n);
              elm_box_pack_end(row, fb);
              evas_object_show(fb);
