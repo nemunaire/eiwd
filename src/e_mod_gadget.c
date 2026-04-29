@@ -201,6 +201,9 @@ _gc_shutdown(E_Gadcon_Client *gcc)
    Instance *inst = gcc->data;
    if (!inst) return;
    _instances = eina_list_remove(_instances, inst);
+   if (inst->o_base)
+     evas_object_event_callback_del_full(inst->o_base, EVAS_CALLBACK_MOUSE_DOWN,
+                                         _on_mouse_down, inst);
    if (inst->o_icon) evas_object_del(inst->o_icon);
    if (inst->o_base) evas_object_del(inst->o_base);
    E_FREE(inst);
