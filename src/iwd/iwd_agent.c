@@ -183,6 +183,13 @@ void
 iwd_agent_free(Iwd_Agent *a)
 {
    if (!a) return;
+   /* Politely deregister so iwd doesn't keep dispatching to a dead service
+    * during shutdown. Fire-and-forget: the connection may already be torn
+    * down by the time the call would land, and there's nothing to do with
+    * the reply anyway. */
+   if (a->am_proxy)
+     eldbus_proxy_call(a->am_proxy, "UnregisterAgent", NULL, NULL, -1,
+                       "o", IWD_AGENT_PATH);
    if (a->svc)      eldbus_service_interface_unregister(a->svc);
    if (a->am_proxy) eldbus_proxy_unref(a->am_proxy);
    if (a->am_obj)   eldbus_object_unref(a->am_obj);
