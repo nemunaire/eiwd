@@ -61,6 +61,16 @@ iwd_adapter_free(Iwd_Adapter *a)
    free(a);
 }
 
+static void
+_on_set_powered_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   Iwd_Adapter *a = data;
+   const char *en, *em;
+   if (eldbus_message_error_get(msg, &en, &em) && a->manager)
+     iwd_manager_report_error(a->manager,
+                              "Set Adapter.Powered failed: %s", em ? em : en);
+}
+
 void
 iwd_adapter_set_powered(Iwd_Adapter *a, Eina_Bool on)
 {
@@ -83,7 +93,7 @@ iwd_adapter_set_powered(Iwd_Adapter *a, Eina_Bool on)
    eldbus_message_iter_basic_append(variant, 'b', v);
    eldbus_message_iter_container_close(iter, variant);
 
-   eldbus_proxy_send(props, msg, NULL, NULL, -1);
+   eldbus_proxy_send(props, msg, _on_set_powered_reply, a, -1);
    /* Keep the props proxy alive on the adapter so the call isn't canceled. */
    if (a->_props_proxy_keepalive) eldbus_proxy_unref(a->_props_proxy_keepalive);
    a->_props_proxy_keepalive = props;

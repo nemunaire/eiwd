@@ -148,6 +148,7 @@ _on_net_clicked(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
 {
    Iwd_Network *n = data;
    if (!n) return;
+   if (e_iwd && e_iwd->manager) iwd_manager_clear_error(e_iwd->manager);
    iwd_network_connect(n);
 }
 
@@ -234,7 +235,17 @@ _refresh(Popup *p)
    if (!p || !e_iwd || !e_iwd->manager) return;
    Iwd_State s = iwd_manager_state(e_iwd->manager);
    if (p->status_lbl)
-     elm_object_text_set(p->status_lbl, _state_label(s));
+     {
+        const char *err = iwd_manager_last_error(e_iwd->manager);
+        if (err)
+          {
+             char buf[320];
+             snprintf(buf, sizeof(buf), "%s — %s", _state_label(s), err);
+             elm_object_text_set(p->status_lbl, buf);
+          }
+        else
+          elm_object_text_set(p->status_lbl, _state_label(s));
+     }
    if (p->btn_toggle)
      elm_object_text_set(p->btn_toggle, s == IWD_STATE_OFF ? "Enable" : "Disable");
    if (p->btn_scan)
@@ -260,18 +271,23 @@ _on_manager_change(void *data, Iwd_Manager *m EINA_UNUSED)
 
 static void _on_rescan (void *d EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *e EINA_UNUSED)
 {
-   if (e_iwd && e_iwd->manager) iwd_manager_scan_request(e_iwd->manager);
+   if (!e_iwd || !e_iwd->manager) return;
+   iwd_manager_clear_error(e_iwd->manager);
+   iwd_manager_scan_request(e_iwd->manager);
 }
 static void _on_toggle(void *d EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *e EINA_UNUSED)
 {
    if (!e_iwd || !e_iwd->manager) return;
+   iwd_manager_clear_error(e_iwd->manager);
    Eina_Bool off = (iwd_manager_state(e_iwd->manager) == IWD_STATE_OFF);
    iwd_manager_set_powered(e_iwd->manager, off);
 }
 static void _on_disconnect(void *d EINA_UNUSED, Evas_Object *o EINA_UNUSED, void *e EINA_UNUSED)
 {
    Iwd_Device *dev = _active_device();
-   if (dev) iwd_device_disconnect(dev);
+   if (!dev) return;
+   if (e_iwd && e_iwd->manager) iwd_manager_clear_error(e_iwd->manager);
+   iwd_device_disconnect(dev);
 }
 
 static void

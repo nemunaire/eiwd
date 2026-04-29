@@ -1,5 +1,7 @@
 #include "iwd_agent.h"
 #include "iwd_dbus.h"
+#include "iwd_manager.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -135,11 +137,18 @@ iwd_agent_cancel(Iwd_Agent_Request *req)
 /* ----- Registration with iwd ------------------------------------------ */
 
 static void
-_on_register(void *data EINA_UNUSED, const Eldbus_Message *msg,
+_on_register(void *data, const Eldbus_Message *msg,
              Eldbus_Pending *p EINA_UNUSED)
 {
+   /* `data` is the manager — same pointer the trampoline carries. */
+   Iwd_Manager *m = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em))
+   if (!eldbus_message_error_get(msg, &en, &em)) return;
+   if (m)
+     iwd_manager_report_error(m,
+        "Wi-Fi agent registration refused (another agent running?): %s",
+        em ? em : en);
+   else
      fprintf(stderr, "e_iwd: agent register failed: %s: %s\n", en, em);
 }
 
@@ -147,7 +156,7 @@ void
 iwd_agent_register(Iwd_Agent *a)
 {
    if (!a || !a->am_proxy) return;
-   eldbus_proxy_call(a->am_proxy, "RegisterAgent", _on_register, NULL, -1,
+   eldbus_proxy_call(a->am_proxy, "RegisterAgent", _on_register, a->data, -1,
                      "o", IWD_AGENT_PATH);
 }
 

@@ -4,6 +4,8 @@
 #include "iwd_device.h"
 #include "iwd_network.h"
 #include <Ecore.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +25,7 @@ struct _Iwd_Manager
    Eina_List   *listeners; /* Listener * */
    Iwd_State    state;
    Ecore_Job   *notify_job;
+   char        *last_error;
 
    Iwd_Agent_Passphrase_Cb pass_cb;
    void                   *pass_data;
@@ -100,6 +103,33 @@ iwd_manager_notify(Iwd_Manager *m)
 {
    if (!m || m->notify_job) return;
    m->notify_job = ecore_job_add(_notify_job_cb, m);
+}
+
+const char *
+iwd_manager_last_error(const Iwd_Manager *m) { return m ? m->last_error : NULL; }
+
+void
+iwd_manager_clear_error(Iwd_Manager *m)
+{
+   if (!m || !m->last_error) return;
+   free(m->last_error);
+   m->last_error = NULL;
+}
+
+void
+iwd_manager_report_error(Iwd_Manager *m, const char *fmt, ...)
+{
+   if (!m || !fmt) return;
+   char buf[256];
+   va_list ap;
+   va_start(ap, fmt);
+   vsnprintf(buf, sizeof(buf), fmt, ap);
+   va_end(ap);
+   /* stderr keeps the dev-visible trail; the stashed copy drives the UI. */
+   fprintf(stderr, "e_iwd: %s\n", buf);
+   free(m->last_error);
+   m->last_error = strdup(buf);
+   iwd_manager_notify(m);
 }
 
 /* ----- state aggregation ---------------------------------------------- */
@@ -281,6 +311,7 @@ iwd_manager_free(Iwd_Manager *m)
    eina_hash_free(m->networks);
    Listener *li;
    EINA_LIST_FREE(m->listeners, li) free(li);
+   free(m->last_error);
    free(m);
 }
 

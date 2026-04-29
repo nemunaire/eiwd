@@ -3,7 +3,6 @@
 #include "iwd_props.h"
 #include "iwd_manager.h"
 #include "iwd_network.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -186,35 +185,72 @@ _refresh_signals(Iwd_Device *d)
                      _on_ordered_networks, d, -1, "");
 }
 
+static void
+_on_scan_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   Iwd_Device *d = data;
+   const char *en, *em;
+   if (!eldbus_message_error_get(msg, &en, &em)) return;
+   /* "AlreadyExists" / "InProgress" is the normal race when two scan
+    * triggers fire close together — don't spam the user with that. */
+   if (en && (strstr(en, "InProgress") || strstr(en, "Busy") ||
+              strstr(en, "AlreadyExists")))
+     return;
+   if (d->manager)
+     iwd_manager_report_error(d->manager, "Scan failed: %s", em ? em : en);
+}
+
 void
 iwd_device_scan(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
-   eldbus_proxy_call(d->station_proxy, "Scan", NULL, NULL, -1, "");
+   eldbus_proxy_call(d->station_proxy, "Scan", _on_scan_reply, d, -1, "");
+}
+
+static void
+_on_disconnect_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
+{
+   Iwd_Device *d = data;
+   const char *en, *em;
+   if (eldbus_message_error_get(msg, &en, &em) && d->manager)
+     iwd_manager_report_error(d->manager,
+                              "Disconnect failed: %s", em ? em : en);
 }
 
 void
 iwd_device_disconnect(Iwd_Device *d)
 {
    if (!d || !d->station_proxy) return;
-   eldbus_proxy_call(d->station_proxy, "Disconnect", NULL, NULL, -1, "");
+   eldbus_proxy_call(d->station_proxy, "Disconnect", _on_disconnect_reply, d, -1, "");
 }
+
+typedef struct
+{
+   Iwd_Device *d;
+   char       *ssid;
+} _Connect_Hidden_Ctx;
 
 static void
 _on_connect_hidden_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
 {
+   _Connect_Hidden_Ctx *ctx = data;
    const char *en, *em;
-   char *ssid = data;
-   if (eldbus_message_error_get(msg, &en, &em))
-     fprintf(stderr, "e_iwd: ConnectHiddenNetwork('%s') failed: %s: %s\n",
-             ssid ? ssid : "?", en, em);
-   free(ssid);
+   if (eldbus_message_error_get(msg, &en, &em) && ctx->d->manager)
+     iwd_manager_report_error(ctx->d->manager,
+                              "Connect to hidden '%s' failed: %s",
+                              ctx->ssid ? ctx->ssid : "?", em ? em : en);
+   free(ctx->ssid);
+   free(ctx);
 }
 
 void
 iwd_device_connect_hidden(Iwd_Device *d, const char *ssid)
 {
    if (!d || !d->station_proxy || !ssid || !*ssid) return;
+   _Connect_Hidden_Ctx *ctx = calloc(1, sizeof(*ctx));
+   if (!ctx) return;
+   ctx->d    = d;
+   ctx->ssid = strdup(ssid);
    eldbus_proxy_call(d->station_proxy, "ConnectHiddenNetwork",
-                     _on_connect_hidden_reply, strdup(ssid), -1, "s", ssid);
+                     _on_connect_hidden_reply, ctx, -1, "s", ssid);
 }
