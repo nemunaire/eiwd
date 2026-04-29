@@ -292,6 +292,9 @@ _refresh(Popup *p)
 {
    if (!p || !e_iwd || !e_iwd->manager) return;
    Iwd_State s = iwd_manager_state(e_iwd->manager);
+   /* Radio went off: the stash can no longer be useful (iwd won't ask)
+    * and we'd rather not keep a passphrase resident across a toggle. */
+   if (s == IWD_STATE_OFF) _hidden_pending_clear();
    if (p->status_lbl)
      {
         const char *err = iwd_manager_last_error(e_iwd->manager);
@@ -467,6 +470,10 @@ _destroy(void)
    if (_popup->gp) e_object_del(E_OBJECT(_popup->gp));
    free(_popup);
    _popup = NULL;
+   /* Drop any pre-armed hidden-network passphrase: if the user closes the
+    * popup before iwd asks, the stash would otherwise sit in the heap until
+    * the 30 s timer fires. The stash is process-global, not popup-scoped. */
+   _hidden_pending_clear();
 }
 
 void
