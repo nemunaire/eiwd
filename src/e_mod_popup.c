@@ -117,12 +117,23 @@ _active_device(void)
 
 /* ----- list rendering -------------------------------------------------- */
 
+/* Click data is a strdup'd object path, freed via the row's EVAS_CALLBACK_DEL.
+ * Holding the Iwd_Network * directly would UAF if iwd vanished (its hash is
+ * cleared in _on_name_vanished) between row paint and click. */
+static void
+_row_path_free(void *data, Evas *e EINA_UNUSED,
+               Evas_Object *o EINA_UNUSED, void *ev EINA_UNUSED)
+{ free(data); }
+
 static void
 _on_net_clicked(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
 {
-   Iwd_Network *n = data;
+   const char *netpath = data;
+   if (!netpath || !e_iwd || !e_iwd->manager) return;
+   const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
+   Iwd_Network *n = h ? eina_hash_find(h, netpath) : NULL;
    if (!n) return;
-   if (e_iwd && e_iwd->manager) iwd_manager_clear_error(e_iwd->manager);
+   iwd_manager_clear_error(e_iwd->manager);
    iwd_network_connect(n);
 }
 
@@ -156,7 +167,10 @@ static void _forget_confirm_no(void *data EINA_UNUSED, Evas_Object *obj, void *e
 static void
 _on_net_forget(void *data, Evas_Object *obj EINA_UNUSED, void *ev EINA_UNUSED)
 {
-   Iwd_Network *n = data;
+   const char *netpath = data;
+   if (!netpath || !e_iwd || !e_iwd->manager) return;
+   const Eina_Hash *h = iwd_manager_networks(e_iwd->manager);
+   Iwd_Network *n = h ? eina_hash_find(h, netpath) : NULL;
    if (!n) return;
 
    /* Forget destroys the saved passphrase irreversibly — confirm first.
@@ -264,7 +278,16 @@ _rebuild_list(Popup *p)
         elm_object_access_info_set(btn, access);
         evas_object_size_hint_weight_set(btn, EVAS_HINT_EXPAND, 0);
         evas_object_size_hint_align_set(btn, EVAS_HINT_FILL, 0);
-        evas_object_smart_callback_add(btn, "clicked", _on_net_clicked, n);
+        /* Pass a copy of the object path, not the Iwd_Network *: the network
+         * may disappear (iwd_dbus name-vanished, scan refresh) before the
+         * user clicks, freeing the struct. The path is re-resolved through
+         * the live hash at click time. The buffer is freed via the button's
+         * EVAS_CALLBACK_DEL when the row is rebuilt or popup torn down. */
+        char *click_path = n->path ? strdup(n->path) : NULL;
+        if (click_path)
+          evas_object_event_callback_add(btn, EVAS_CALLBACK_DEL,
+                                         _row_path_free, click_path);
+        evas_object_smart_callback_add(btn, "clicked", _on_net_clicked, click_path);
         elm_box_pack_end(row, btn);
         evas_object_show(btn);
 
@@ -276,7 +299,11 @@ _rebuild_list(Popup *p)
              char facc[128];
              snprintf(facc, sizeof(facc), "Forget %s", raw_ssid);
              elm_object_access_info_set(fb, facc);
-             evas_object_smart_callback_add(fb, "clicked", _on_net_forget, n);
+             char *forget_path = n->path ? strdup(n->path) : NULL;
+             if (forget_path)
+               evas_object_event_callback_add(fb, EVAS_CALLBACK_DEL,
+                                              _row_path_free, forget_path);
+             evas_object_smart_callback_add(fb, "clicked", _on_net_forget, forget_path);
              elm_box_pack_end(row, fb);
              evas_object_show(fb);
           }
