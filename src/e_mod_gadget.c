@@ -259,10 +259,10 @@ _gc_icon(const E_Gadcon_Client_Class *cc EINA_UNUSED, Evas *evas)
 static const char *
 _gc_id_new(const E_Gadcon_Client_Class *cc)
 {
-   static char buf[128];
+   char buf[128];
    snprintf(buf, sizeof(buf), "%s.%d", cc->name,
             eina_list_count(_instances) + 1);
-   return buf;
+   return eina_stringshare_add(buf);
 }
 
 static const E_Gadcon_Client_Class _gadcon_class =
