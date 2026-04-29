@@ -61,14 +61,26 @@ iwd_adapter_free(Iwd_Adapter *a)
    free(a);
 }
 
+/* Reply context captures the *manager* (which outlives all sub-objects) and
+ * a strdup'd adapter path, never the Iwd_Adapter — on iwd disconnect the
+ * adapter hash is freed, and a raw back-ref would UAF when the local-error
+ * reply lands. Mirrors the pattern in iwd_network.c / iwd_device.c. */
+typedef struct
+{
+   Iwd_Manager *m;
+   char        *path;
+} _Adapter_Reply_Ctx;
+
 static void
 _on_set_powered_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_UNUSED)
 {
-   Iwd_Adapter *a = data;
+   _Adapter_Reply_Ctx *ctx = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em) && a->manager)
-     iwd_manager_report_error(a->manager,
+   if (eldbus_message_error_get(msg, &en, &em) && ctx->m)
+     iwd_manager_report_error(ctx->m,
                               "Set Adapter.Powered failed: %s", em ? em : en);
+   free(ctx->path);
+   free(ctx);
 }
 
 void
@@ -93,7 +105,13 @@ iwd_adapter_set_powered(Iwd_Adapter *a, Eina_Bool on)
    eldbus_message_iter_basic_append(variant, 'b', v);
    eldbus_message_iter_container_close(iter, variant);
 
-   eldbus_proxy_send(props, msg, _on_set_powered_reply, a, -1);
+   _Adapter_Reply_Ctx *ctx = calloc(1, sizeof(*ctx));
+   if (ctx)
+     {
+        ctx->m = a->manager;
+        ctx->path = a->path ? strdup(a->path) : NULL;
+     }
+   eldbus_proxy_send(props, msg, _on_set_powered_reply, ctx, -1);
    /* Keep the props proxy alive on the adapter so the call isn't canceled. */
    if (a->_props_proxy_keepalive) eldbus_proxy_unref(a->_props_proxy_keepalive);
    a->_props_proxy_keepalive = props;
