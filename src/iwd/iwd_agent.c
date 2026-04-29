@@ -115,6 +115,12 @@ void
 iwd_agent_reply(Iwd_Agent_Request *req, const char *passphrase)
 {
    if (!req) return;
+   /* The passphrase is copied into the eldbus/libdbus marshalled message
+    * buffer here. We can't wipe that buffer ourselves — eldbus owns it and
+    * frees it asynchronously after the call is sent. Callers are expected
+    * to explicit_bzero their own copy of `passphrase` after this returns;
+    * the residue inside the outbound D-Bus message is unavoidable at this
+    * boundary. */
    Eldbus_Message *r = eldbus_message_method_return_new(req->msg);
    eldbus_message_arguments_append(r, "s", passphrase ? passphrase : "");
    eldbus_connection_send(req->agent->conn, r, NULL, NULL, -1);
