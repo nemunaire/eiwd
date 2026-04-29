@@ -79,9 +79,12 @@ iwd_network_free(Iwd_Network *n)
    free(n);
 }
 
+/* Reply context captures the *manager* (which outlives all sub-objects) and
+ * a strdup'd SSID, never the Iwd_Network — the network may disappear from
+ * the next scan before iwd's reply lands, and a raw back-ref would UAF. */
 typedef struct
 {
-   Iwd_Network *n;
+   Iwd_Manager *m;
    char        *ssid;
 } _Net_Reply_Ctx;
 
@@ -90,8 +93,8 @@ _on_connect_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_
 {
    _Net_Reply_Ctx *ctx = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em) && ctx->n->manager)
-     iwd_manager_report_error(ctx->n->manager,
+   if (eldbus_message_error_get(msg, &en, &em) && ctx->m)
+     iwd_manager_report_error(ctx->m,
                               "Connect to '%s' failed: %s",
                               ctx->ssid ? ctx->ssid : "?", em ? em : en);
    free(ctx->ssid);
@@ -103,8 +106,8 @@ _on_forget_reply(void *data, const Eldbus_Message *msg, Eldbus_Pending *p EINA_U
 {
    _Net_Reply_Ctx *ctx = data;
    const char *en, *em;
-   if (eldbus_message_error_get(msg, &en, &em) && ctx->n->manager)
-     iwd_manager_report_error(ctx->n->manager,
+   if (eldbus_message_error_get(msg, &en, &em) && ctx->m)
+     iwd_manager_report_error(ctx->m,
                               "Forget '%s' failed: %s",
                               ctx->ssid ? ctx->ssid : "?", em ? em : en);
    free(ctx->ssid);
@@ -129,7 +132,7 @@ _reply_ctx_new(Iwd_Network *n)
 {
    _Net_Reply_Ctx *ctx = calloc(1, sizeof(*ctx));
    if (!ctx) return NULL;
-   ctx->n    = n;
+   ctx->m    = n->manager;
    ctx->ssid = n->ssid ? strdup(n->ssid) : NULL;
    return ctx;
 }
