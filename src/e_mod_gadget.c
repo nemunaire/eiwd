@@ -6,6 +6,7 @@
 #include "iwd/iwd_device.h"
 #include "iwd/iwd_network.h"
 #include <e_gadcon.h>
+#include <limits.h>
 
 /* ----- per-instance gadget data --------------------------------------- */
 
@@ -173,14 +174,12 @@ _on_mouse_down(void *data, Evas *e EINA_UNUSED, Evas_Object *obj EINA_UNUSED, vo
 
 /* ----- helpers --------------------------------------------------------- */
 
-static char *
-_theme_path(void)
+static Eina_Bool
+_theme_path(char *buf, size_t len)
 {
-   static char buf[4096];
-   if (!e_iwd || !e_iwd->module) return NULL;
-   snprintf(buf, sizeof(buf), "%s/e-module-iwd.edj",
-            e_module_dir_get(e_iwd->module));
-   return buf;
+   if (!e_iwd || !e_iwd->module) return EINA_FALSE;
+   snprintf(buf, len, "%s/e-module-iwd.edj", e_module_dir_get(e_iwd->module));
+   return EINA_TRUE;
 }
 
 /* ----- gadcon class ---------------------------------------------------- */
@@ -189,7 +188,8 @@ static E_Gadcon_Client *
 _gc_init(E_Gadcon *gc, const char *name, const char *id, const char *style)
 {
    Instance *inst = E_NEW(Instance, 1);
-   const char *path = _theme_path();
+   char path[PATH_MAX];
+   if (!_theme_path(path, sizeof(path))) path[0] = '\0';
 
    /* themed edje is the gadcon o_base — its intrinsic min comes from the
     * theme group, just like the backlight module. */
@@ -250,9 +250,10 @@ _gc_label(const E_Gadcon_Client_Class *cc EINA_UNUSED) { return "iwd"; }
 static Evas_Object *
 _gc_icon(const E_Gadcon_Client_Class *cc EINA_UNUSED, Evas *evas)
 {
-   const char *path = _theme_path();
+   char path[PATH_MAX];
    Evas_Object *o = edje_object_add(evas);
-   if (path) edje_object_file_set(o, path, "icon");
+   if (_theme_path(path, sizeof(path)))
+     edje_object_file_set(o, path, "icon");
    return o;
 }
 
