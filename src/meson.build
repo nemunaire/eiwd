@@ -11,10 +11,8 @@ e_iwd_sources = [
   'iwd/iwd_device.c',
   'iwd/iwd_network.c',
   'iwd/iwd_labels.c',
-  'ui/wifi_list.c',
   'ui/wifi_auth.c',
   'ui/wifi_hidden.c',
-  'ui/wifi_status.c',
 ]
 
 shared_module('module',
